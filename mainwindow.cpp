@@ -2,12 +2,18 @@
 #include "mainwindow.h"
 #include <QTime>
 #include <QDebug>
+const char* MainWindow::REMOTE_IP = "192.168.1.100";
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent),
       m_videoPlayer(new VideoPlayer()),
       m_isVideoPlaying(false)
 {
+    // 初始化UDP
+    udpSocket = new QUdpSocket(this);
+    if (!udpSocket->bind(QHostAddress::AnyIPv4, UDP_PORT_LOCAL)) {
+        QMessageBox::critical(this, "错误", "无法绑定UDP端口: " + QString::number(UDP_PORT_LOCAL));
+    }
     createUI();
     createConnections();
 
@@ -20,6 +26,7 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     delete m_videoPlayer;
+    delete udpSocket;
 
 }
 
@@ -356,13 +363,15 @@ void MainWindow::createControlButtons()
 
 void MainWindow::createConnections()
 {
+    connect(udpSocket, &QUdpSocket::readyRead, this, &MainWindow::readPendingDatagrams);
+    connect(m_startDetectionBtn, &QPushButton::clicked, this, &MainWindow::onStartDetectClicked);
 
-    // 测试用：点击按钮更新信息
-    connect(m_startDetectionBtn, &QPushButton::clicked, [this]() {
-        updateFrameRate("30fps");
-        updateResolution("640*512");
-        updateTimestamp(QTime::currentTime().toString("hh：mm：ss"));
-    });
+//    // 测试用：点击按钮更新信息
+//    connect(m_startDetectionBtn, &QPushButton::clicked, [this]() {
+//        updateFrameRate("30fps");
+//        updateResolution("640*512");
+//        updateTimestamp(QTime::currentTime().toString("hh：mm：ss"));
+//    });
 
     // 视频相关连接
     connect(m_connectionBtn, &QPushButton::clicked, [this]() {
@@ -527,3 +536,209 @@ void MainWindow::onVideoError(QString error) {
     m_connectionBtn->setText("连接");
     m_isVideoPlaying = false;
 }
+
+//开始检测按钮的实现
+/*
+void MainWindow::onStartDetectClicked()
+{
+    if (!isDetecting) {
+        // 开始检测
+        sendStartDetectCommand();
+        m_startDetectionBtn->setText("停止检测");
+
+        isDetecting = true;
+    } else {
+        // 停止检测
+        sendStopDetectCommand();
+        m_startDetectionBtn->setText("开始检测");
+
+        isDetecting = false;
+    }
+}
+*/
+
+void MainWindow::sendStartDetectCommand()
+{
+    unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+
+    // 帧头
+    sendBuffer[0] = 0xC1;
+    // 命令ID - 开始检测
+    sendBuffer[1] = tarDetectBack;
+
+    sendBuffer[2] = startDetect;
+
+    // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
+    sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
+
+    // 发送UDP数据报并检查返回值
+    qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+                                               QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+
+    if (bytesSent == SENDBUFFER_SIZE_UDP) {
+        qDebug() << "UDP发送成功，发送字节数:" << bytesSent;
+        qDebug() << "目标IP:" << REMOTE_IP << "端口:" << UDP_PORT_REMOTE;
+        qDebug() << "命令: tarDetectBack - startDetect";
+    } else if (bytesSent == -1) {
+        qDebug() << "UDP发送失败! 错误:" << udpSocket->errorString();
+    } else {
+        qDebug() << "UDP发送不完整，期望发送:" << SENDBUFFER_SIZE_UDP << "实际发送:" << bytesSent;
+    }
+}
+
+void MainWindow::sendStopDetectCommand()
+{
+    unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+
+    // 帧头
+    sendBuffer[0] = 0xC1;
+    // 命令ID - 停止检测
+    sendBuffer[1] = tarDetectBack;
+    sendBuffer[2] = stopDetect;
+
+    // 计算校验和
+    sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
+
+    // 发送UDP数据报
+    udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+                            QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+}
+
+unsigned char MainWindow::CalCheckNum(unsigned char data[], int num)
+{
+    unsigned char res = 0;
+    for (int i = 0; i < num; i++) {
+        res += data[i];
+    }
+    return res;
+}
+
+void MainWindow::readPendingDatagrams()
+{
+    while (udpSocket->hasPendingDatagrams()) {
+        QByteArray datagram;
+        datagram.resize(udpSocket->pendingDatagramSize());
+        QHostAddress sender;
+        quint16 senderPort;
+
+        udpSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
+        parseReceivedData(datagram);
+    }
+}
+
+void MainWindow::parseReceivedData(const QByteArray &data)
+{
+    if (data.size() < 64) return; // 数据长度不足
+
+    const unsigned char *buffer = reinterpret_cast<const unsigned char*>(data.constData());
+
+    // 验证帧头
+    if (buffer[0] != 0xC3) return;
+
+    // 验证校验和
+    unsigned char checksum = CalCheckNum(const_cast<unsigned char*>(&buffer[1]), data.size() - 2);
+    if (checksum != buffer[data.size() - 1]) return;
+
+    // 解析命令ID
+    unsigned char cmdId = buffer[1];
+
+    if (cmdId == StateSend_DC) {
+        // 解析视场角信息
+        FLOAT2CHAR ftemp;
+
+        // 可见光视场角
+        memcpy(ftemp.arr, &buffer[2], 4);
+        visFov = ftemp.val;
+
+        // 红外视场角
+        memcpy(ftemp.arr, &buffer[6], 4);
+        irFov = ftemp.val;
+
+        // 目标数量
+        int targetCount = buffer[10];
+        detectedTargets.clear();
+
+        // 解析每个目标信息
+        for (int i = 0; i < targetCount && i < 20; i++) { // 限制最大20个目标
+            TargetInfo target;
+            int baseIndex = 11 + i * 19;
+
+            if (baseIndex + 18 >= data.size()) break; // 防止越界
+
+            target.id = i + 1;
+            target.targetClass = buffer[baseIndex + 1];
+
+            // 解析X坐标
+            unsigned int cx = 0;
+            cx |= (unsigned int)buffer[baseIndex + 3] << 24;
+            cx |= (unsigned int)buffer[baseIndex + 4] << 16;
+            cx |= (unsigned int)buffer[baseIndex + 5] << 8;
+            cx |= (unsigned int)buffer[baseIndex + 6];
+            target.cx = cx;
+
+            // 解析Y坐标
+            unsigned int cy = 0;
+            cy |= (unsigned int)buffer[baseIndex + 7] << 24;
+            cy |= (unsigned int)buffer[baseIndex + 8] << 16;
+            cy |= (unsigned int)buffer[baseIndex + 9] << 8;
+            cy |= (unsigned int)buffer[baseIndex + 10];
+            target.cy = cy;
+
+            // 解析方位角
+            memcpy(ftemp.arr, &buffer[baseIndex + 11], 4);
+            target.az = ftemp.val;
+
+            // 解析俯仰角
+            memcpy(ftemp.arr, &buffer[baseIndex + 15], 4);
+            target.pi = ftemp.val;
+
+            detectedTargets.append(target);
+
+            QString info = QString("目标 %1: 类别=%2, 坐标=(%3, %4), 方位角=%5, 俯仰角=%6")
+                            .arg(target.id)
+                            .arg(target.targetClass)
+                            .arg(target.cx)
+                            .arg(target.cy)
+                            .arg(target.az)
+                            .arg(target.pi);
+            qDebug() << info;
+        }
+    }
+}
+
+//切换视频按钮
+void MainWindow::onStartDetectClicked()
+{
+    if (!m_isVideoPlaying) {
+        QMessageBox::warning(this, "提示", "请先连接视频");
+        return;
+    } else {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+
+        // 帧头
+        sendBuffer[0] = 0xC1;
+        // 命令ID - 开始检测
+        sendBuffer[1] = (enum SendEnum)0x0A;
+
+        sendBuffer[2] = (enum videoDisplayEnum)0x02;//1是红外，2是可见光
+
+        // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
+
+        // 发送UDP数据报并检查返回值
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+                                                   QHostAddress("192.168.1.100"), 40213);
+
+        if (bytesSent == SENDBUFFER_SIZE_UDP) {
+            qDebug() << "UDP发送成功，发送字节数:" << bytesSent;
+            qDebug() << "目标IP:" << REMOTE_IP << "端口:" << UDP_PORT_REMOTE;
+            qDebug() << "命令: videoDisplayBack - irDis";
+        } else if (bytesSent == -1) {
+            qDebug() << "UDP发送失败! 错误:" << udpSocket->errorString();
+        } else {
+            qDebug() << "UDP发送不完整，期望发送:" << SENDBUFFER_SIZE_UDP << "实际发送:" << bytesSent;
+        }
+    }
+}
+
+
