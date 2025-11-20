@@ -172,7 +172,7 @@ void MainWindow::createControlPanel()
 void MainWindow::createGimbalControl()
 {
     m_gimbalGroup = new QGroupBox("云台控制");
-    m_gimbalGroup->setFixedSize(271, 251);
+    m_gimbalGroup->setFixedSize(271, 221);
 
     QVBoxLayout *mainLayout = new QVBoxLayout(m_gimbalGroup);
 
@@ -207,22 +207,29 @@ void MainWindow::createGimbalControl()
     QGridLayout *paramLayout = new QGridLayout(paramWidget);
 
     // 移动速度
-    m_moveSpeedLabel = new QLabel("移动速度");
-    m_moveSpeedLabel->setFixedSize(70, 25);
-    m_moveSpeedLabel->setAlignment(Qt::AlignCenter);
-    m_moveSpeedEdit = new QLineEdit();
-    m_moveSpeedEdit->setFixedSize(160, 25);
+//    m_moveSpeedLabel = new QLabel("移动速度");
+//    m_moveSpeedLabel->setFixedSize(70, 25);
+//    m_moveSpeedLabel->setAlignment(Qt::AlignCenter);
+//    m_moveSpeedEdit = new QLineEdit();
+//    m_moveSpeedEdit->setFixedSize(160, 25);
 
     // 角度步进
-    m_angleStepLabel = new QLabel("角度步进");
-    m_angleStepEdit = new QLineEdit();
-    m_angleStepLabel->setFixedSize(70, 25);
+    m_angleStepLabel = new QLabel("移动步进");
+    m_angleStepLabel->setFixedSize(70, 30);
     m_angleStepLabel->setAlignment(Qt::AlignCenter);
-    m_angleStepEdit->setFixedSize(160, 25);
-    paramLayout->addWidget(m_moveSpeedLabel,0,0);
-    paramLayout->addWidget(m_moveSpeedEdit,0,1);
+//    m_angleStepEdit = new QLineEdit();
+//    m_angleStepEdit->setFixedSize(160, 25);
+
+    angleStep = new QSpinBox;
+    angleStep->setFixedSize(100,30);
+    angleStep->setRange(0, 100);        // 设置范围
+    angleStep->setValue(1);            // 设置当前值
+    angleStep->setSingleStep(1);        // 设置步长
+
+//    paramLayout->addWidget(m_moveSpeedLabel,0,0);
+//    paramLayout->addWidget(m_moveSpeedEdit,0,1);
     paramLayout->addWidget(m_angleStepLabel,1,0);
-    paramLayout->addWidget(m_angleStepEdit,1,1);
+    paramLayout->addWidget(angleStep,1,1);
 
     // 功能按钮区域
     QWidget *functionWidget = new QWidget();
@@ -297,25 +304,36 @@ void MainWindow::createLensControl()
 void MainWindow::createImageControl()
 {
     m_imageGroup = new QGroupBox("图像控制");
-    m_imageGroup->setFixedSize(271, 161);
+    m_imageGroup->setFixedSize(271, 201);
 
     QVBoxLayout *mainLayout = new QVBoxLayout(m_imageGroup);
 
     // 模式选择
     QWidget *modeWidget = new QWidget();
-    modeWidget->setFixedSize(251, 51);
-    QHBoxLayout *modeLayout = new QHBoxLayout(modeWidget);
+    modeWidget->setFixedSize(251, 91);
+//    QHBoxLayout *modeLayout = new QHBoxLayout(modeWidget);
+//    m_imageTypeCombo = new QComboBox();
+//    m_imageTypeCombo->addItem("红外");
+//    m_imageTypeCombo->addItem("可见光");
+//    m_videoSourceCombo = new QComboBox();
+//    m_videoSourceCombo->addItem("推流视频");
+//    m_videoSourceCombo->addItem("本地视频");
+//    modeLayout->addWidget(m_imageTypeCombo);
+//    modeLayout->addWidget(m_videoSourceCombo);
+    QGridLayout *modeLayout = new QGridLayout(modeWidget);
+    m_imageType_ir = new QPushButton("红外");
+    m_imageType_ir->setFixedSize(100,25);
+    m_imageType_vis = new QPushButton("可见光");
+    m_imageType_vis->setFixedSize(100,25);
+    m_videoSource_stream = new QPushButton("推流视频");
+    m_videoSource_stream->setFixedSize(100,25);
+    m_videoSource_local = new QPushButton("本地视频");
+    m_videoSource_local->setFixedSize(100,25);
 
-    m_imageTypeCombo = new QComboBox();
-    m_imageTypeCombo->addItem("红外");
-    m_imageTypeCombo->addItem("可见光");
-
-    m_videoSourceCombo = new QComboBox();
-    m_videoSourceCombo->addItem("推流视频");
-    m_videoSourceCombo->addItem("本地视频");
-
-    modeLayout->addWidget(m_imageTypeCombo);
-    modeLayout->addWidget(m_videoSourceCombo);
+    modeLayout->addWidget(m_imageType_ir, 0, 0);
+    modeLayout->addWidget(m_imageType_vis, 0, 1);
+    modeLayout->addWidget(m_videoSource_stream, 1, 0);
+    modeLayout->addWidget(m_videoSource_local, 1, 1);
 
     // 亮度和对比度控制
     QWidget *adjustWidget = new QWidget();
@@ -364,15 +382,31 @@ void MainWindow::createControlButtons()
 void MainWindow::createConnections()
 {
     connect(udpSocket, &QUdpSocket::readyRead, this, &MainWindow::readPendingDatagrams);
-    connect(m_startDetectionBtn, &QPushButton::clicked, this, &MainWindow::onStartDetectClicked);
+    connect(m_imageType_vis, &QPushButton::clicked, [this]() {
+            unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+            sendBuffer[0] = 0xC1;
+            sendBuffer[1] = (enum SendEnum)0x0A;
+            sendBuffer[2] = (enum videoDisplayEnum)0x02;//1是红外，2是可见光
+            // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
+            sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
+            // 发送UDP数据报并检查返回值
+            qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+                                                       QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+        }
+    );
 
-//    // 测试用：点击按钮更新信息
-//    connect(m_startDetectionBtn, &QPushButton::clicked, [this]() {
-//        updateFrameRate("30fps");
-//        updateResolution("640*512");
-//        updateTimestamp(QTime::currentTime().toString("hh：mm：ss"));
-//    });
-
+    connect(m_imageType_ir, &QPushButton::clicked, [this]() {
+            unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+            sendBuffer[0] = 0xC1;
+            sendBuffer[1] = (enum SendEnum)0x0A;
+            sendBuffer[2] = (enum videoDisplayEnum)0x01;//1是红外，2是可见光
+            // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
+            sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
+            // 发送UDP数据报并检查返回值
+            qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+                                                       QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+        }
+    );
     // 视频相关连接
     connect(m_connectionBtn, &QPushButton::clicked, [this]() {
         if (!m_isVideoPlaying) {
@@ -452,7 +486,51 @@ void MainWindow::createConnections()
         }
     });
 
+    connect(m_gimbalUpBtn, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
 
+        // 帧头
+//        sendBuffer[0] = 0xC1;
+//        sendBuffer[1] = (enum SendEnum)0xFF;
+//        // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
+//        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
+//        // 发送UDP数据报并检查返回值
+//        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+//                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+
+        sendBuffer[0] = 0xC1;
+        sendBuffer[1] = (enum SendEnum)0xFF;
+        sendBuffer[2] = 1;
+        sendBuffer[3] = angleStep->value();
+        // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
+        // 发送UDP数据报并检查返回值
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    connect(m_gimbalDownBtn, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+
+        // 帧头
+//        sendBuffer[0] = 0xC1;
+//        sendBuffer[1] = (enum SendEnum)0xFF;
+//        // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
+//        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
+//        // 发送UDP数据报并检查返回值
+//        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+//                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+
+        sendBuffer[0] = 0xC1;
+        sendBuffer[1] = (enum SendEnum)0xFE;
+        sendBuffer[2] = 1;
+        sendBuffer[3] = angleStep->value();
+        // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
+        // 发送UDP数据报并检查返回值
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
 }
 
 // 更新帧率显示
@@ -472,7 +550,6 @@ void MainWindow::updateTimestamp(const QString &timestamp)
 {
     m_timestampValueLabel->setText(timestamp);
 }
-
 
 void MainWindow::onFrameCaptured(cv::Mat frame) {
 //    if (frame.empty()) return;
@@ -538,7 +615,6 @@ void MainWindow::onVideoError(QString error) {
 }
 
 //开始检测按钮的实现
-/*
 void MainWindow::onStartDetectClicked()
 {
     if (!isDetecting) {
@@ -555,7 +631,6 @@ void MainWindow::onStartDetectClicked()
         isDetecting = false;
     }
 }
-*/
 
 void MainWindow::sendStartDetectCommand()
 {
@@ -564,9 +639,9 @@ void MainWindow::sendStartDetectCommand()
     // 帧头
     sendBuffer[0] = 0xC1;
     // 命令ID - 开始检测
-    sendBuffer[1] = tarDetectBack;
+    sendBuffer[1] = (enum SendEnum)0x04;
 
-    sendBuffer[2] = startDetect;
+    sendBuffer[2] = (enum tarDetecteEnumBack)0x02;
 
     // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
     sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
@@ -574,16 +649,6 @@ void MainWindow::sendStartDetectCommand()
     // 发送UDP数据报并检查返回值
     qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
                                                QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
-
-    if (bytesSent == SENDBUFFER_SIZE_UDP) {
-        qDebug() << "UDP发送成功，发送字节数:" << bytesSent;
-        qDebug() << "目标IP:" << REMOTE_IP << "端口:" << UDP_PORT_REMOTE;
-        qDebug() << "命令: tarDetectBack - startDetect";
-    } else if (bytesSent == -1) {
-        qDebug() << "UDP发送失败! 错误:" << udpSocket->errorString();
-    } else {
-        qDebug() << "UDP发送不完整，期望发送:" << SENDBUFFER_SIZE_UDP << "实际发送:" << bytesSent;
-    }
 }
 
 void MainWindow::sendStopDetectCommand()
@@ -593,8 +658,8 @@ void MainWindow::sendStopDetectCommand()
     // 帧头
     sendBuffer[0] = 0xC1;
     // 命令ID - 停止检测
-    sendBuffer[1] = tarDetectBack;
-    sendBuffer[2] = stopDetect;
+    sendBuffer[1] = (enum SendEnum)0x04;
+    sendBuffer[2] = (enum tarDetecteEnumBack)0x01;
 
     // 计算校验和
     sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
@@ -702,41 +767,6 @@ void MainWindow::parseReceivedData(const QByteArray &data)
                             .arg(target.az)
                             .arg(target.pi);
             qDebug() << info;
-        }
-    }
-}
-
-//切换视频按钮
-void MainWindow::onStartDetectClicked()
-{
-    if (!m_isVideoPlaying) {
-        QMessageBox::warning(this, "提示", "请先连接视频");
-        return;
-    } else {
-        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
-
-        // 帧头
-        sendBuffer[0] = 0xC1;
-        // 命令ID - 开始检测
-        sendBuffer[1] = (enum SendEnum)0x0A;
-
-        sendBuffer[2] = (enum videoDisplayEnum)0x02;//1是红外，2是可见光
-
-        // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
-        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
-
-        // 发送UDP数据报并检查返回值
-        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-                                                   QHostAddress("192.168.1.100"), 40213);
-
-        if (bytesSent == SENDBUFFER_SIZE_UDP) {
-            qDebug() << "UDP发送成功，发送字节数:" << bytesSent;
-            qDebug() << "目标IP:" << REMOTE_IP << "端口:" << UDP_PORT_REMOTE;
-            qDebug() << "命令: videoDisplayBack - irDis";
-        } else if (bytesSent == -1) {
-            qDebug() << "UDP发送失败! 错误:" << udpSocket->errorString();
-        } else {
-            qDebug() << "UDP发送不完整，期望发送:" << SENDBUFFER_SIZE_UDP << "实际发送:" << bytesSent;
         }
     }
 }

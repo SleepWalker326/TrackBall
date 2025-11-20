@@ -20,8 +20,14 @@
 #include <QMessageBox>
 #include <QDebug>
 #include <QUdpSocket>
+#include <QSpinBox>
 #include "videoplayer.h"  // 添加头文件包含
 #include "mediarecorder.h"
+#include "protocaltypes.h"
+
+
+//#define UDP_AVAILDADA_SIZE 389
+//#define SENDBUFFER_SIZE_UDP 392
 
 /*
 上位机给板卡发送指令的端口为40213
@@ -43,7 +49,14 @@ enum SendEnum
     videoSavedBack,
     gateSetBack,
     videoCompressBack,
-    infoDisplayBack
+    infoDisplayBack,
+    mainTainBack = 0xFF,
+    crossMoveBack = 0xFE,
+    crossCenterBack = 0xFD,
+    crossLocationBack = 0xFC,
+    crossSaveBack = 0xFB,
+    crossLoadBack = 0xFA,
+    crossClearBack = 0xF0
 };
 enum videoDisplayEnum
 {
@@ -55,7 +68,7 @@ enum videoDisplayEnum
 //目标检测
 enum tarDetecteEnumBack
 {
-    stopDetect = 1,
+    stopDetect = 0x01,
     startDetect,
     DetectPro
 };
@@ -87,12 +100,6 @@ typedef struct {
 
 // 枚举定义
 
-enum RecvEnum_DC
-{
-    StateSend_DC=0x01,
-};
-
-
 // 数据转换联合体
 union SHORT2CHAR {
     short val;
@@ -109,7 +116,48 @@ union FLOAT2CHAR {
     unsigned char arr[4];
 };
 
+enum SendEnum_DC
+{
+    StateSend_DC=0x01,
+};
 
+//struct Str_UDPSendBuff
+//{
+//    unsigned char      m_Header;                       //1 Bytes:帧头
+//    enum SendEnum_DC      m_ComponentID;                  //1 Byte:组件标识码
+//    unsigned char      m_Avail[UDP_AVAILDADA_SIZE];    //61Bytes：有效数据字
+//    unsigned char      u_Check;                        //1 Bytes：校验和
+//};
+
+//struct Str_rsvFeedBack
+//{
+//    struct Str_ManualBack r_manualBack;
+//    enum tarDetecteEnumBack r_TarDetectBack;
+//    enum videoStableEnumBack r_VideoStableBack;
+//    unsigned char r_AssignedTargetBack;
+//    unsigned char r_IDTargetBack;
+//    union U_ChaBlank r_chaBlank;
+//    enum videoDisplayEnum r_videoDisplay;
+//    enum videoSavedBackEnum r_videoSaved;
+//    struct Str_GateAdjst r_gateAdjst;
+//    unsigned char r_videoComprss;
+//    struct Str_InfoDisplay r_infoDisplay;
+
+//    enum ImgFreezeEnumBack r_Freeze;
+//    enum CrossDisplayBack r_crossDis;
+//    struct Str_CrossCorrectBack r_diffLine;
+//    struct Str_TrackingBoxBack r_trackBox;
+//    unsigned char crossOrient;
+//    unsigned char crossStep;
+//    unsigned short crossX;
+//    unsigned short crossY;
+//    int jumpState=0;
+//    int jumpPos=0;
+//    int systemMod=0;
+//};
+
+////发送
+//struct Str_rsvFeedBack r_FeedBack;
 
 class MainWindow : public QMainWindow
 {
@@ -181,6 +229,7 @@ private:
     QLineEdit *m_angleStepEdit;
     QPushButton *m_gimbalResetBtn;
     QPushButton *m_autoScanBtn;
+    QSpinBox *angleStep;
 
     // 镜头控制组件
     QGroupBox *m_lensGroup;
@@ -195,8 +244,12 @@ private:
 
     // 图像控制组件
     QGroupBox *m_imageGroup;
-    QComboBox *m_imageTypeCombo;
-    QComboBox *m_videoSourceCombo;
+//    QComboBox *m_imageTypeCombo;
+//    QComboBox *m_videoSourceCombo;
+    QPushButton *m_imageType_vis;
+    QPushButton *m_imageType_ir;
+    QPushButton *m_videoSource_stream;
+    QPushButton *m_videoSource_local;
     QLabel *m_brightnessLabel;
     QPushButton *m_brightnessUpBtn;
     QPushButton *m_brightnessDownBtn;
@@ -228,7 +281,8 @@ private:
     static const int UDP_PORT_REMOTE = 40213;
     static const char* REMOTE_IP;
     static const int SENDBUFFER_SIZE_UDP = 64;  // 命令包大小
-
+    unsigned char crossOrient;
+    unsigned char crossStep;
 };
 
 #endif // MAINWINDOW_H
