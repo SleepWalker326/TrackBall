@@ -21,6 +21,19 @@ MainWindow::MainWindow(QWidget *parent)
 
     setWindowTitle("智能光电球显示界面");
     resize(1000, 715);
+
+    unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+
+    // 帧头
+    sendBuffer[0] = 0xC1;
+    // 命令ID - 开始检测
+    sendBuffer[1] = (enum SendEnum)0x04;
+    sendBuffer[2] = (enum tarDetecteEnumBack)0x00;
+    // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
+    sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
+    // 发送UDP数据报并检查返回值
+    qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+                                               QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
 }
 
 MainWindow::~MainWindow()
@@ -382,11 +395,12 @@ void MainWindow::createControlButtons()
 void MainWindow::createConnections()
 {
     connect(udpSocket, &QUdpSocket::readyRead, this, &MainWindow::readPendingDatagrams);
+    connect(m_startDetectionBtn, &QPushButton::clicked, this, &MainWindow::onStartDetectClicked);
     connect(m_imageType_vis, &QPushButton::clicked, [this]() {
             unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
             sendBuffer[0] = 0xC1;
             sendBuffer[1] = (enum SendEnum)0x0A;
-            sendBuffer[2] = (enum videoDisplayEnum)0x02;//1是红外，2是可见光
+            sendBuffer[2] = (enum videoDisplayEnum)0x00;//1是红外，0是可见光
             // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
             sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
             // 发送UDP数据报并检查返回值
@@ -399,7 +413,7 @@ void MainWindow::createConnections()
             unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
             sendBuffer[0] = 0xC1;
             sendBuffer[1] = (enum SendEnum)0x0A;
-            sendBuffer[2] = (enum videoDisplayEnum)0x01;//1是红外，2是可见光
+            sendBuffer[2] = (enum videoDisplayEnum)0x01;//1是红外，0是可见光
             // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
             sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
             // 发送UDP数据报并检查返回值
@@ -614,7 +628,7 @@ void MainWindow::onVideoError(QString error) {
     m_isVideoPlaying = false;
 }
 
-//开始检测按钮的实现
+//开始检测按钮
 void MainWindow::onStartDetectClicked()
 {
     if (!isDetecting) {
@@ -641,7 +655,7 @@ void MainWindow::sendStartDetectCommand()
     // 命令ID - 开始检测
     sendBuffer[1] = (enum SendEnum)0x04;
 
-    sendBuffer[2] = (enum tarDetecteEnumBack)0x02;
+    sendBuffer[2] = (enum tarDetecteEnumBack)0x01;
 
     // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
     sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
@@ -658,8 +672,7 @@ void MainWindow::sendStopDetectCommand()
     // 帧头
     sendBuffer[0] = 0xC1;
     // 命令ID - 停止检测
-    sendBuffer[1] = (enum SendEnum)0x04;
-    sendBuffer[2] = (enum tarDetecteEnumBack)0x01;
+    sendBuffer[1] = (enum SendEnum)0x02;
 
     // 计算校验和
     sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);

@@ -68,7 +68,7 @@ enum videoDisplayEnum
 //目标检测
 enum tarDetecteEnumBack
 {
-    stopDetect = 0x01,
+    stopDetect,
     startDetect,
     DetectPro
 };
