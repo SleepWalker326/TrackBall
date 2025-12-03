@@ -21,9 +21,11 @@
 #include <QDebug>
 #include <QUdpSocket>
 #include <QSpinBox>
+#include <QTableWidget>
+#include <QtGlobal>
 #include "videoplayer.h"  // 添加头文件包含
 #include "mediarecorder.h"
-#include "protocaltypes.h"
+#include "statusfeedbackpacket.h"
 
 
 //#define UDP_AVAILDADA_SIZE 389
@@ -33,131 +35,7 @@
 上位机给板卡发送指令的端口为40213
 上位机接收板卡发送数据"192.168.1.211:40212"
 */
-// 命令枚举定义
-enum SendEnum
-{
-    SelfCheckBack0 = 0x01,
-    idleBack,
-    manualTrackBack,
-    tarDetectBack,
-    videoStabilityBack,
-    specifyTrackBack,
-    idTrackBack,
-    cancelTrackBack,
-    chaBlankBack,
-    videoDisplayBack,
-    videoSavedBack,
-    gateSetBack,
-    videoCompressBack,
-    infoDisplayBack,
-    mainTainBack = 0xFF,
-    crossMoveBack = 0xFE,
-    crossCenterBack = 0xFD,
-    crossLocationBack = 0xFC,
-    crossSaveBack = 0xFB,
-    crossLoadBack = 0xFA,
-    crossClearBack = 0xF0
-};
-enum videoDisplayEnum
-{
-    visibleDis = 0x01,
-    irDis = 0x02,
-    mwirDis = 0x03,
-    none
-};
-//目标检测
-enum tarDetecteEnumBack
-{
-    stopDetect,
-    startDetect,
-    DetectPro
-};
 
-// 协议帧结构定义
-typedef struct {
-    unsigned char m_RsvHeader;      // 帧头
-    unsigned char m_rsvID;          // 命令ID
-    unsigned char m_rData[510];     // 数据区域
-    unsigned char rsv_Check;        // 校验和
-} ReceiveFrame;
-
-// 发送帧结构定义
-typedef struct {
-    unsigned char m_ComponentID;    // 组件ID
-    unsigned char m_Avail[509];     // 有效数据
-    unsigned char u_Check;          // 校验和
-} SendFrameUDP;
-
-// 目标信息结构
-typedef struct {
-    int id;                         // 目标ID
-    int targetClass;                // 目标类别
-    unsigned int cx;                // 中心X坐标
-    unsigned int cy;                // 中心Y坐标
-    float az;                       // 方位角
-    float pi;                       // 俯仰角
-} TargetInfo;
-
-// 枚举定义
-
-// 数据转换联合体
-union SHORT2CHAR {
-    short val;
-    unsigned char arr[2];
-};
-
-union USHORT2CHAR {
-    unsigned short val;
-    unsigned char arr[2];
-};
-
-union FLOAT2CHAR {
-    float val;
-    unsigned char arr[4];
-};
-
-enum SendEnum_DC
-{
-    StateSend_DC=0x01,
-};
-
-//struct Str_UDPSendBuff
-//{
-//    unsigned char      m_Header;                       //1 Bytes:帧头
-//    enum SendEnum_DC      m_ComponentID;                  //1 Byte:组件标识码
-//    unsigned char      m_Avail[UDP_AVAILDADA_SIZE];    //61Bytes：有效数据字
-//    unsigned char      u_Check;                        //1 Bytes：校验和
-//};
-
-//struct Str_rsvFeedBack
-//{
-//    struct Str_ManualBack r_manualBack;
-//    enum tarDetecteEnumBack r_TarDetectBack;
-//    enum videoStableEnumBack r_VideoStableBack;
-//    unsigned char r_AssignedTargetBack;
-//    unsigned char r_IDTargetBack;
-//    union U_ChaBlank r_chaBlank;
-//    enum videoDisplayEnum r_videoDisplay;
-//    enum videoSavedBackEnum r_videoSaved;
-//    struct Str_GateAdjst r_gateAdjst;
-//    unsigned char r_videoComprss;
-//    struct Str_InfoDisplay r_infoDisplay;
-
-//    enum ImgFreezeEnumBack r_Freeze;
-//    enum CrossDisplayBack r_crossDis;
-//    struct Str_CrossCorrectBack r_diffLine;
-//    struct Str_TrackingBoxBack r_trackBox;
-//    unsigned char crossOrient;
-//    unsigned char crossStep;
-//    unsigned short crossX;
-//    unsigned short crossY;
-//    int jumpState=0;
-//    int jumpPos=0;
-//    int systemMod=0;
-//};
-
-////发送
-//struct Str_rsvFeedBack r_FeedBack;
 
 class MainWindow : public QMainWindow
 {
@@ -205,6 +83,11 @@ private:
     QLabel *m_timestampLabel;
     QLabel *m_timestampValueLabel;
 
+    QWidget *m_gimbalWidget;
+    QWidget *m_lensWidget;
+    QWidget *m_imageWidget;
+    QWidget *m_rightPanelWidget;
+    QTableWidget  *m_dataTable;
     // 底部控制按钮
     QPushButton *m_connectionBtn;
     QPushButton *m_startDetectionBtn;
@@ -217,20 +100,36 @@ private:
     QWidget *m_controlPanelWidget;
 
     // 云台控制组件
-    QGroupBox *m_gimbalGroup;
+
+
+    QLabel *step;
+    QSpinBox *stepValue;
+    QLabel *aziRate;
+    QLabel *aziRateValue;
+    QLabel *phiRate;
+    QLabel *phiRateValue;
+    QPushButton *frontView;
+    QLabel *frontViewAzi;
+    QLineEdit *frontViewAziValue;
+    QLabel *frontViewPhi;
+    QLineEdit *frontViewPhiValue;
     QPushButton *m_gimbalUpBtn;
     QPushButton *m_gimbalLeftBtn;
     QPushButton *m_gimbalDownBtn;
     QPushButton *m_gimbalRightBtn;
     QPushButton *m_gimbalStopBtn;
-    QLabel *m_moveSpeedLabel;
-    QLineEdit *m_moveSpeedEdit;
-    QLabel *m_angleStepLabel;
-    QLineEdit *m_angleStepEdit;
-    QPushButton *m_gimbalResetBtn;
-    QPushButton *m_autoScanBtn;
-    QSpinBox *angleStep;
-
+    QLabel *azi;
+    QLabel *aziValue;
+    QLabel *phi;
+    QLabel *phiValue;
+    QPushButton *sectorScan;
+    QPushButton *circularScan;
+    QLabel *scanRate;
+    QLineEdit *scanRateValue;
+    QLabel *scanRange;
+    QLineEdit *scanRangeValue;
+    QLabel *scanCenter;
+    QLineEdit *scanCenterValue;
     // 镜头控制组件
     QGroupBox *m_lensGroup;
     QLabel *m_zoomLabel;
@@ -272,15 +171,14 @@ private:
     // 网络通信
     QUdpSocket *udpSocket;
     // 目标信息
-    QList<TargetInfo> detectedTargets;
     float visFov;
     float irFov;
 
     // 常量
-    static const int UDP_PORT_LOCAL = 40212;
-    static const int UDP_PORT_REMOTE = 40213;
+    static const int UDP_PORT_LOCAL = 40210;
+    static const int UDP_PORT_REMOTE = 40211;
     static const char* REMOTE_IP;
-    static const int SENDBUFFER_SIZE_UDP = 64;  // 命令包大小
+    static const int SENDBUFFER_SIZE_UDP = 16;  // 命令包大小
     unsigned char crossOrient;
     unsigned char crossStep;
 };

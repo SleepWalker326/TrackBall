@@ -27,7 +27,7 @@ SOURCES += \
 HEADERS += \
     mainwindow.h \
     mediarecorder.h \
-    protocaltypes.h \
+    statusfeedbackpacket.h \
     videoplayer.h
 
 # Default rules for deployment.

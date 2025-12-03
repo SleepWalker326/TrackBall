@@ -20,20 +20,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_mediaRecorder = new MediaRecorder(this);
 
     setWindowTitle("智能光电球显示界面");
-    resize(1000, 715);
-
-    unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
-
-    // 帧头
-    sendBuffer[0] = 0xC1;
-    // 命令ID - 开始检测
-    sendBuffer[1] = (enum SendEnum)0x04;
-    sendBuffer[2] = (enum tarDetecteEnumBack)0x00;
-    // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
-    sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
-    // 发送UDP数据报并检查返回值
-    qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-                                               QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    resize(1500, 815);
 }
 
 MainWindow::~MainWindow()
@@ -93,12 +80,12 @@ void MainWindow::createMainArea()
     createDisplayArea();
     leftLayout->addWidget(m_displayImageLabel, 0, Qt::AlignCenter);
 
-    // 创建右侧控制面板
+    // 创建右侧控制面板和表格区域
     createControlPanel();
 
     // 添加到主布局
     mainDisplayLayout->addWidget(leftDisplayWidget);
-    mainDisplayLayout->addWidget(m_controlPanelWidget);
+    mainDisplayLayout->addWidget(m_rightPanelWidget);  // 改为右侧整体面板
 }
 
 QWidget* MainWindow::createInfoArea()
@@ -163,223 +150,398 @@ void MainWindow::createDisplayArea()
 
 void MainWindow::createControlPanel()
 {
-    m_controlPanelWidget = new QWidget();
-    m_controlPanelWidget->setFixedSize(291, 591);
-    QVBoxLayout *controlLayout = new QVBoxLayout(m_controlPanelWidget);
+    // 创建右侧整体面板
+    m_rightPanelWidget = new QWidget();
+    m_rightPanelWidget->setFixedSize(601, 591);
+    QVBoxLayout *rightPanelLayout = new QVBoxLayout(m_rightPanelWidget);
+    rightPanelLayout->setSpacing(10);  // 设置间距
 
-    // 创建云台控制
+    // 创建TabWidget
+    QTabWidget *controlTabWidget = new QTabWidget();
+    controlTabWidget->setFixedSize(591, 291);  // 调整高度，为表格留出空间
+
+    // 创建各个控制模块的Tab页
     createGimbalControl();
-    controlLayout->addWidget(m_gimbalGroup);
-
-    // 创建镜头控制
     createLensControl();
-    controlLayout->addWidget(m_lensGroup);
-
-    // 创建图像控制
     createImageControl();
-    controlLayout->addWidget(m_imageGroup);
 
-    controlLayout->addStretch();
+    // 将各个控制模块添加到Tab页
+    controlTabWidget->addTab(m_gimbalWidget, "云台控制");
+    controlTabWidget->addTab(m_lensWidget, "镜头控制");
+    controlTabWidget->addTab(m_imageWidget, "图像控制");
+
+    // 创建表格区域
+    QWidget *tableWidget = new QWidget();
+    tableWidget->setFixedSize(591, 300);  // 表格区域高度
+    QVBoxLayout *tableLayout = new QVBoxLayout(tableWidget);
+
+    // 创建表格标题
+    QLabel *tableTitle = new QLabel("目标信息");
+    tableTitle->setAlignment(Qt::AlignCenter);
+    tableTitle->setStyleSheet("font-weight: bold; font-size: 14px; margin: 5px;");
+
+    // 创建表格（暂时留空，不编辑内容）
+    m_dataTable = new QTableWidget();
+    m_dataTable->setFixedSize(581, 300);
+    m_dataTable->setColumnCount(4);  // 设置4列
+    m_dataTable->setRowCount(5);     // 设置5行
+
+    // 设置表头
+    QStringList headers;
+    headers << "时间" << "参数1" << "参数2" << "状态";
+    m_dataTable->setHorizontalHeaderLabels(headers);
+
+    // 设置表格样式
+    m_dataTable->setStyleSheet("QTableWidget { border: 1px solid #ccc; background-color: white; }"
+                              "QHeaderView::section { background-color: #f0f0f0; padding: 5px; border: 1px solid #ddd; }");
+
+    // 暂时禁用编辑
+    m_dataTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+
+    // 添加到表格布局
+    tableLayout->addWidget(tableTitle);
+    tableLayout->addWidget(m_dataTable);
+
+    // 将TabWidget和表格添加到右侧面板布局
+    rightPanelLayout->addWidget(controlTabWidget);
+    rightPanelLayout->addWidget(tableWidget);
 }
 
 void MainWindow::createGimbalControl()
 {
-    m_gimbalGroup = new QGroupBox("云台控制");
-    m_gimbalGroup->setFixedSize(271, 221);
+    // 改为创建普通Widget而不是GroupBox
+    m_gimbalWidget = new QWidget();
+    m_gimbalWidget->setFixedSize(591, 281); // 调整高度以适应Tab页
 
-    QVBoxLayout *mainLayout = new QVBoxLayout(m_gimbalGroup);
+    QGridLayout *mainLayout = new QGridLayout(m_gimbalWidget);
 
-    // 方向控制区域
+    //步长、方位速度、俯仰速度
+    QWidget *window1 = new QWidget();
+    QHBoxLayout *win1layout = new QHBoxLayout(window1);
+    step = new QLabel("步长");
+    step->setAlignment(Qt::AlignCenter);
+    step->setFixedSize(50,40);
+    stepValue = new QSpinBox();
+    stepValue->setFixedSize(70,30);
+    stepValue->setAlignment(Qt::AlignCenter);
+    stepValue->setRange(1,100);
+    QHBoxLayout *steplayout = new QHBoxLayout();
+    steplayout->addWidget(step);
+    steplayout->addWidget(stepValue);
+    aziRate = new QLabel("方位速度");
+    aziRate->setFixedSize(70,40);
+    aziRateValue = new QLabel("0");
+    aziRateValue->setFixedSize(70,40);
+    QHBoxLayout *aziRatelayout = new QHBoxLayout();
+    aziRatelayout->addWidget(aziRate);
+    aziRatelayout->addWidget(aziRateValue);
+    phiRate = new QLabel("俯仰速度");
+    phiRate->setFixedSize(70,40);
+    phiRateValue = new QLabel("0");
+    phiRateValue->setFixedSize(70,40);
+    QHBoxLayout *phiRatelayout = new QHBoxLayout();
+    phiRatelayout->addWidget(phiRate);
+    phiRatelayout->addWidget(phiRateValue);
+    QVBoxLayout *ratelayout = new QVBoxLayout();
+    ratelayout->addLayout(aziRatelayout);
+    ratelayout->addLayout(phiRatelayout);
+    win1layout->addLayout(steplayout);
+    win1layout->addLayout(ratelayout);
+    mainLayout->addWidget(window1,0,0);
+
+    //前视模式
+    QWidget *window2 = new QWidget();
+    QHBoxLayout *win2layout = new QHBoxLayout(window2);
+    frontView = new QPushButton("前视模式");
+    frontView->setFixedSize(100,40);
+    frontViewAzi = new QLabel("前视方位");
+    frontViewAzi->setFixedSize(70,40);
+    frontViewAziValue = new QLineEdit();
+    frontViewAziValue->setFixedSize(70,25);
+    frontViewPhi = new QLabel("前视俯仰");
+    frontViewPhi->setFixedSize(70,40);
+    frontViewPhiValue = new QLineEdit();
+    frontViewPhiValue->setFixedSize(70,25);
+    QHBoxLayout *frontViewAzilayout = new QHBoxLayout();
+    frontViewAzilayout->addWidget(frontViewAzi);
+    frontViewAzilayout->addWidget(frontViewAziValue);
+    QHBoxLayout *frontViewPhilayout = new QHBoxLayout();
+    frontViewPhilayout->addWidget(frontViewPhi);
+    frontViewPhilayout->addWidget(frontViewPhiValue);
+    QVBoxLayout *frontViewlayout = new QVBoxLayout();
+    frontViewlayout->addLayout(frontViewAzilayout);
+    frontViewlayout->addLayout(frontViewPhilayout);
+    win2layout->addWidget(frontView);
+    win2layout->addLayout(frontViewlayout);
+    mainLayout->addWidget(window2,0,1);
+
+    //方向控制
+    QWidget *window3 = new QWidget();
+    QHBoxLayout *win3layout = new QHBoxLayout(window3);
     QWidget *directionWidget = new QWidget();
-    directionWidget->setFixedSize(251, 90);
-    QGridLayout *directionLayout = new QGridLayout(directionWidget);
-
     m_gimbalUpBtn = new QPushButton("上");
+    m_gimbalUpBtn->setFixedSize(40,40);
     m_gimbalLeftBtn = new QPushButton("左");
+    m_gimbalLeftBtn->setFixedSize(40,40);
     m_gimbalDownBtn = new QPushButton("下");
+    m_gimbalDownBtn->setFixedSize(40,40);
     m_gimbalRightBtn = new QPushButton("右");
-    m_gimbalStopBtn = new QPushButton("停止");
+    m_gimbalRightBtn->setFixedSize(40,40);
+    QGridLayout *directionlayout = new QGridLayout(directionWidget);
+    directionlayout->addWidget(m_gimbalUpBtn,0,1);
+    directionlayout->addWidget(m_gimbalLeftBtn,1,0);
+    directionlayout->addWidget(m_gimbalDownBtn,1,1);
+    directionlayout->addWidget(m_gimbalRightBtn,1,2);
+    azi = new QLabel("方位位置");
+    azi->setFixedSize(70,40);
+    aziValue = new QLabel("0");
+    aziValue->setFixedSize(70,40);
+    QHBoxLayout *azilayout = new QHBoxLayout();
+    azilayout->addWidget(azi);
+    azilayout->addWidget(aziValue);
+    phi = new QLabel("俯仰位置");
+    phi->setFixedSize(70,40);
+    phiValue = new QLabel("0");
+    phiValue->setFixedSize(70,40);
+    QHBoxLayout *philayout = new QHBoxLayout();
+    philayout->addWidget(phi);
+    philayout->addWidget(phiValue);
+    QVBoxLayout *positionlayout = new QVBoxLayout();
+    positionlayout->addLayout(azilayout);
+    positionlayout->addLayout(philayout);
+    win3layout->addWidget(directionWidget);
+    win3layout->addLayout(positionlayout);
+    mainLayout->addWidget(window3,1,0);
 
-    // 设置方形按钮
-    m_gimbalUpBtn->setFixedSize(40, 40);
-    m_gimbalLeftBtn->setFixedSize(40, 40);
-    m_gimbalDownBtn->setFixedSize(40, 40);
-    m_gimbalRightBtn->setFixedSize(40, 40);
-    m_gimbalStopBtn->setFixedSize(90, 40);
-
-    // 设置按钮位置
-    directionLayout->addWidget(m_gimbalUpBtn, 0, 1);
-    directionLayout->addWidget(m_gimbalLeftBtn, 1, 0);
-    directionLayout->addWidget(m_gimbalDownBtn, 1, 1);
-    directionLayout->addWidget(m_gimbalRightBtn, 1, 2);
-    directionLayout->addWidget(m_gimbalStopBtn, 1, 3);
-
-    // 参数设置区域
-    QWidget *paramWidget = new QWidget();
-    paramWidget->setFixedSize(251, 90);
-    QGridLayout *paramLayout = new QGridLayout(paramWidget);
-
-    // 移动速度
-//    m_moveSpeedLabel = new QLabel("移动速度");
-//    m_moveSpeedLabel->setFixedSize(70, 25);
-//    m_moveSpeedLabel->setAlignment(Qt::AlignCenter);
-//    m_moveSpeedEdit = new QLineEdit();
-//    m_moveSpeedEdit->setFixedSize(160, 25);
-
-    // 角度步进
-    m_angleStepLabel = new QLabel("移动步进");
-    m_angleStepLabel->setFixedSize(70, 30);
-    m_angleStepLabel->setAlignment(Qt::AlignCenter);
-//    m_angleStepEdit = new QLineEdit();
-//    m_angleStepEdit->setFixedSize(160, 25);
-
-    angleStep = new QSpinBox;
-    angleStep->setFixedSize(100,30);
-    angleStep->setRange(0, 100);        // 设置范围
-    angleStep->setValue(1);            // 设置当前值
-    angleStep->setSingleStep(1);        // 设置步长
-
-//    paramLayout->addWidget(m_moveSpeedLabel,0,0);
-//    paramLayout->addWidget(m_moveSpeedEdit,0,1);
-    paramLayout->addWidget(m_angleStepLabel,1,0);
-    paramLayout->addWidget(angleStep,1,1);
-
-    // 功能按钮区域
-    QWidget *functionWidget = new QWidget();
-    functionWidget->setFixedSize(251, 41);
-    QHBoxLayout *functionLayout = new QHBoxLayout(functionWidget);
-
-    m_gimbalResetBtn = new QPushButton("云台归零");
-    m_autoScanBtn = new QPushButton("自动扫描");
-
-    functionLayout->addWidget(m_gimbalResetBtn);
-    functionLayout->addWidget(m_autoScanBtn);
-
-    // 添加到主布局
-    mainLayout->addWidget(directionWidget);
-    mainLayout->addWidget(paramWidget);
-    mainLayout->addWidget(functionWidget);
+    //扫描模式
+    QWidget *window4 = new QWidget();
+    QHBoxLayout *win4layout = new QHBoxLayout(window4);
+    sectorScan = new QPushButton("扇扫模式");
+    sectorScan->setFixedSize(100,40);
+    circularScan = new QPushButton("周扫模式");
+    circularScan->setFixedSize(100,40);
+    QVBoxLayout *scanBtnlayout = new QVBoxLayout();
+    scanBtnlayout->addWidget(sectorScan);
+    scanBtnlayout->addWidget(circularScan);
+    scanRate = new QLabel("扫描速度");
+    scanRate->setFixedSize(70,40);
+    scanRateValue = new QLineEdit();
+    scanRateValue->setFixedSize(70,25);
+    QHBoxLayout *scanRatelayout = new QHBoxLayout();
+    scanRatelayout->addWidget(scanRate);
+    scanRatelayout->addWidget(scanRateValue);
+    scanRange = new QLabel("扫描范围");
+    scanRange->setFixedSize(70,40);
+    scanRangeValue = new QLineEdit();
+    scanRangeValue->setFixedSize(70,25);
+    QHBoxLayout *scanRangelayout = new QHBoxLayout();
+    scanRangelayout->addWidget(scanRange);
+    scanRangelayout->addWidget(scanRangeValue);
+    scanCenter = new QLabel("扫描中心");
+    scanCenter->setFixedSize(70,40);
+    scanCenterValue = new QLineEdit();
+    scanCenterValue->setFixedSize(70,25);
+    QHBoxLayout *scanCenterlayout = new QHBoxLayout();
+    scanCenterlayout->addWidget(scanCenter);
+    scanCenterlayout->addWidget(scanCenterValue);
+    QVBoxLayout *scanlayout = new QVBoxLayout();
+    scanlayout->addLayout(scanRatelayout);
+    scanlayout->addLayout(scanRangelayout);
+    scanlayout->addLayout(scanCenterlayout);
+    win4layout->addLayout(scanBtnlayout);
+    win4layout->addLayout(scanlayout);
+    mainLayout->addWidget(window4,1,1);
 }
 
 void MainWindow::createLensControl()
 {
-    m_lensGroup = new QGroupBox("镜头控制");
-    m_lensGroup->setFixedSize(271, 151);
+    m_lensWidget = new QWidget();
+    m_lensWidget->setFixedSize(591, 320);
 
-    QVBoxLayout *mainLayout = new QVBoxLayout(m_lensGroup);
+    QVBoxLayout *mainLayout = new QVBoxLayout(m_lensWidget);
 
     // 变焦和视场控制
     QWidget *controlWidget = new QWidget();
-    controlWidget->setFixedSize(251, 71);
-    QGridLayout *controlLayout = new QGridLayout(controlWidget);
+    controlWidget->setFixedSize(591, 150);
+    QVBoxLayout *controlLayout = new QVBoxLayout(controlWidget);
 
     // 变焦控制
-    m_zoomLabel = new QLabel("变焦");
-    m_zoomLabel->setFixedSize(45, 30);
+    QWidget *zoomWidget = new QWidget();
+    zoomWidget->setFixedSize(591, 70);
+    QHBoxLayout *zoomLayout = new QHBoxLayout(zoomWidget);
+
+    m_zoomLabel = new QLabel("变焦控制");
+    m_zoomLabel->setFixedSize(100, 40);
     m_zoomLabel->setAlignment(Qt::AlignCenter);
-    m_zoomInBtn = new QPushButton("+");
     m_zoomOutBtn = new QPushButton("-");
-    m_zoomInBtn->setFixedSize(28, 28);
-    m_zoomOutBtn->setFixedSize(28, 28);
+    m_zoomInBtn = new QPushButton("+");
+    m_zoomInBtn->setFixedSize(50, 50);
+    m_zoomOutBtn->setFixedSize(50, 50);
+
+    zoomLayout->addStretch();
+    zoomLayout->addWidget(m_zoomOutBtn);
+    zoomLayout->addSpacing(20);
+    zoomLayout->addWidget(m_zoomLabel);
+    zoomLayout->addSpacing(20);
+    zoomLayout->addWidget(m_zoomInBtn);
+    zoomLayout->addStretch();
 
     // 视场控制
-    m_fovLabel = new QLabel("视场");
-    m_fovLabel->setFixedSize(45, 30);
-    m_fovLabel->setAlignment(Qt::AlignCenter);
-    m_fovLargeBtn = new QPushButton("大");
-    m_fovSmallBtn = new QPushButton("小");
-    m_fovLargeBtn->setFixedSize(28, 28);
-    m_fovSmallBtn->setFixedSize(28, 28);
+    QWidget *fovWidget = new QWidget();
+    fovWidget->setFixedSize(591, 70);
+    QHBoxLayout *fovLayout = new QHBoxLayout(fovWidget);
 
-    controlLayout->addWidget(m_zoomLabel,0,0);
-    controlLayout->addWidget(m_zoomInBtn,0,1);
-    controlLayout->addWidget(m_zoomOutBtn,0,2);
-    controlLayout->addWidget(m_fovLabel,1,0);
-    controlLayout->addWidget(m_fovLargeBtn,1,1);
-    controlLayout->addWidget(m_fovSmallBtn,1,2);
+    m_fovLabel = new QLabel("视场控制");
+    m_fovLabel->setFixedSize(100, 40);
+    m_fovLabel->setAlignment(Qt::AlignCenter);
+    m_fovSmallBtn = new QPushButton("小");
+    m_fovLargeBtn = new QPushButton("大");
+    m_fovLargeBtn->setFixedSize(50, 50);
+    m_fovSmallBtn->setFixedSize(50, 50);
+
+    fovLayout->addStretch();
+    fovLayout->addWidget(m_fovSmallBtn);
+    fovLayout->addSpacing(20);
+    fovLayout->addWidget(m_fovLabel);
+    fovLayout->addSpacing(20);
+    fovLayout->addWidget(m_fovLargeBtn);
+    fovLayout->addStretch();
+
+    controlLayout->addWidget(zoomWidget);
+    controlLayout->addWidget(fovWidget);
 
     // 功能按钮
     QWidget *functionWidget = new QWidget();
-    functionWidget->setFixedSize(251, 41);
+    functionWidget->setFixedSize(591, 80);
     QHBoxLayout *functionLayout = new QHBoxLayout(functionWidget);
 
     m_autoFocusBtn = new QPushButton("自动聚焦");
     m_lensResetBtn = new QPushButton("一键复位");
 
+    m_autoFocusBtn->setFixedSize(120, 40);
+    m_lensResetBtn->setFixedSize(120, 40);
+
+    functionLayout->addStretch();
     functionLayout->addWidget(m_autoFocusBtn);
+    functionLayout->addSpacing(40);
     functionLayout->addWidget(m_lensResetBtn);
+    functionLayout->addStretch();
 
     // 添加到主布局
+    mainLayout->addSpacing(30);
     mainLayout->addWidget(controlWidget);
+    mainLayout->addSpacing(30);
     mainLayout->addWidget(functionWidget);
+    mainLayout->addStretch();
 }
 
 void MainWindow::createImageControl()
 {
-    m_imageGroup = new QGroupBox("图像控制");
-    m_imageGroup->setFixedSize(271, 201);
+    m_imageWidget = new QWidget();
+    m_imageWidget->setFixedSize(591, 320);
 
-    QVBoxLayout *mainLayout = new QVBoxLayout(m_imageGroup);
+    QVBoxLayout *mainLayout = new QVBoxLayout(m_imageWidget);
 
     // 模式选择
     QWidget *modeWidget = new QWidget();
-    modeWidget->setFixedSize(251, 91);
-//    QHBoxLayout *modeLayout = new QHBoxLayout(modeWidget);
-//    m_imageTypeCombo = new QComboBox();
-//    m_imageTypeCombo->addItem("红外");
-//    m_imageTypeCombo->addItem("可见光");
-//    m_videoSourceCombo = new QComboBox();
-//    m_videoSourceCombo->addItem("推流视频");
-//    m_videoSourceCombo->addItem("本地视频");
-//    modeLayout->addWidget(m_imageTypeCombo);
-//    modeLayout->addWidget(m_videoSourceCombo);
-    QGridLayout *modeLayout = new QGridLayout(modeWidget);
-    m_imageType_ir = new QPushButton("红外");
-    m_imageType_ir->setFixedSize(100,25);
-    m_imageType_vis = new QPushButton("可见光");
-    m_imageType_vis->setFixedSize(100,25);
-    m_videoSource_stream = new QPushButton("推流视频");
-    m_videoSource_stream->setFixedSize(100,25);
-    m_videoSource_local = new QPushButton("本地视频");
-    m_videoSource_local->setFixedSize(100,25);
+    modeWidget->setFixedSize(591, 100);
+    QVBoxLayout *modeLayout = new QVBoxLayout(modeWidget);
 
-    modeLayout->addWidget(m_imageType_ir, 0, 0);
-    modeLayout->addWidget(m_imageType_vis, 0, 1);
-    modeLayout->addWidget(m_videoSource_stream, 1, 0);
-    modeLayout->addWidget(m_videoSource_local, 1, 1);
+    // 图像类型选择
+    QWidget *imageTypeWidget = new QWidget();
+    imageTypeWidget->setFixedSize(591, 45);
+    QHBoxLayout *imageTypeLayout = new QHBoxLayout(imageTypeWidget);
+
+    QLabel *imageTypeTitle = new QLabel("图像类型:");
+    imageTypeTitle->setFixedSize(80, 30);
+    m_imageType_ir = new QPushButton("红外");
+    m_imageType_vis = new QPushButton("可见光");
+    m_imageType_ir->setFixedSize(100, 35);
+    m_imageType_vis->setFixedSize(100, 35);
+
+    imageTypeLayout->addStretch();
+    imageTypeLayout->addWidget(imageTypeTitle);
+    imageTypeLayout->addWidget(m_imageType_ir);
+    imageTypeLayout->addWidget(m_imageType_vis);
+    imageTypeLayout->addStretch();
+
+    // 视频源选择
+    QWidget *videoSourceWidget = new QWidget();
+    videoSourceWidget->setFixedSize(591, 45);
+    QHBoxLayout *videoSourceLayout = new QHBoxLayout(videoSourceWidget);
+
+    QLabel *videoSourceTitle = new QLabel("视频源:");
+    videoSourceTitle->setFixedSize(80, 30);
+    m_videoSource_stream = new QPushButton("推流视频");
+    m_videoSource_local = new QPushButton("本地视频");
+    m_videoSource_stream->setFixedSize(100, 35);
+    m_videoSource_local->setFixedSize(100, 35);
+
+    videoSourceLayout->addStretch();
+    videoSourceLayout->addWidget(videoSourceTitle);
+    videoSourceLayout->addWidget(m_videoSource_stream);
+    videoSourceLayout->addWidget(m_videoSource_local);
+    videoSourceLayout->addStretch();
+
+    modeLayout->addWidget(imageTypeWidget);
+    modeLayout->addWidget(videoSourceWidget);
 
     // 亮度和对比度控制
     QWidget *adjustWidget = new QWidget();
-    adjustWidget->setFixedSize(251, 71);
-    QGridLayout *adjustLayout = new QGridLayout(adjustWidget);
+    adjustWidget->setFixedSize(591, 150);
+    QVBoxLayout *adjustLayout = new QVBoxLayout(adjustWidget);
 
     // 亮度控制
-    m_brightnessLabel = new QLabel("亮度");
-    m_brightnessLabel->setFixedSize(67, 30);
+    QWidget *brightnessWidget = new QWidget();
+    brightnessWidget->setFixedSize(591, 70);
+    QHBoxLayout *brightnessLayout = new QHBoxLayout(brightnessWidget);
+
+    m_brightnessLabel = new QLabel("亮度控制");
+    m_brightnessLabel->setFixedSize(100, 40);
     m_brightnessLabel->setAlignment(Qt::AlignCenter);
-    m_brightnessUpBtn = new QPushButton("+");
     m_brightnessDownBtn = new QPushButton("-");
-    m_brightnessUpBtn->setFixedSize(28, 28);
-    m_brightnessDownBtn->setFixedSize(28, 28);
+    m_brightnessUpBtn = new QPushButton("+");
+    m_brightnessUpBtn->setFixedSize(50, 50);
+    m_brightnessDownBtn->setFixedSize(50, 50);
+
+    brightnessLayout->addStretch();
+    brightnessLayout->addWidget(m_brightnessDownBtn);
+    brightnessLayout->addSpacing(20);
+    brightnessLayout->addWidget(m_brightnessLabel);
+    brightnessLayout->addSpacing(20);
+    brightnessLayout->addWidget(m_brightnessUpBtn);
+    brightnessLayout->addStretch();
 
     // 对比度控制
-    m_contrastLabel = new QLabel("对比度");
-    m_contrastLabel->setFixedSize(67, 30);
-    m_contrastLabel->setAlignment(Qt::AlignCenter);
-    m_contrastUpBtn = new QPushButton("+");
-    m_contrastDownBtn = new QPushButton("-");
-    m_contrastUpBtn->setFixedSize(28, 28);
-    m_contrastDownBtn->setFixedSize(28, 28);
+    QWidget *contrastWidget = new QWidget();
+    contrastWidget->setFixedSize(591, 70);
+    QHBoxLayout *contrastLayout = new QHBoxLayout(contrastWidget);
 
-    adjustLayout->addWidget(m_brightnessLabel,0,0);
-    adjustLayout->addWidget(m_brightnessUpBtn,0,1);
-    adjustLayout->addWidget(m_brightnessDownBtn,0,2);
-    adjustLayout->addWidget(m_contrastLabel,1,0);
-    adjustLayout->addWidget(m_contrastUpBtn,1,1);
-    adjustLayout->addWidget(m_contrastDownBtn,1,2);
+    m_contrastLabel = new QLabel("对比度控制");
+    m_contrastLabel->setFixedSize(100, 40);
+    m_contrastLabel->setAlignment(Qt::AlignCenter);
+    m_contrastDownBtn = new QPushButton("-");
+    m_contrastUpBtn = new QPushButton("+");
+    m_contrastUpBtn->setFixedSize(50, 50);
+    m_contrastDownBtn->setFixedSize(50, 50);
+
+    contrastLayout->addStretch();
+    contrastLayout->addWidget(m_contrastDownBtn);
+    contrastLayout->addSpacing(20);
+    contrastLayout->addWidget(m_contrastLabel);
+    contrastLayout->addSpacing(20);
+    contrastLayout->addWidget(m_contrastUpBtn);
+    contrastLayout->addStretch();
+
+    adjustLayout->addWidget(brightnessWidget);
+    adjustLayout->addWidget(contrastWidget);
+
     // 添加到主布局
-    mainLayout->addWidget(adjustWidget);
+    mainLayout->addSpacing(20);
     mainLayout->addWidget(modeWidget);
+    mainLayout->addSpacing(20);
+    mainLayout->addWidget(adjustWidget);
+    mainLayout->addStretch();
 }
 
 void MainWindow::createControlButtons()
@@ -396,31 +558,35 @@ void MainWindow::createConnections()
 {
     connect(udpSocket, &QUdpSocket::readyRead, this, &MainWindow::readPendingDatagrams);
     connect(m_startDetectionBtn, &QPushButton::clicked, this, &MainWindow::onStartDetectClicked);
+
+    //可见光
     connect(m_imageType_vis, &QPushButton::clicked, [this]() {
             unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
-            sendBuffer[0] = 0xC1;
-            sendBuffer[1] = (enum SendEnum)0x0A;
-            sendBuffer[2] = (enum videoDisplayEnum)0x00;//1是红外，0是可见光
-            // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
-            sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
-            // 发送UDP数据报并检查返回值
+            sendBuffer[0] = 0xCB;
+            sendBuffer[1] = 0x03;
+            sendBuffer[2] = 0x04;
+            sendBuffer[3] = 0x02;
+            sendBuffer[4] = 0x01;//可见光
+            sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
             qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
                                                        QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
         }
     );
 
+    //红外
     connect(m_imageType_ir, &QPushButton::clicked, [this]() {
             unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
-            sendBuffer[0] = 0xC1;
-            sendBuffer[1] = (enum SendEnum)0x0A;
-            sendBuffer[2] = (enum videoDisplayEnum)0x01;//1是红外，0是可见光
-            // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
-            sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
-            // 发送UDP数据报并检查返回值
+            sendBuffer[0] = 0xCB;
+            sendBuffer[1] = 0x03;
+            sendBuffer[2] = 0x04;
+            sendBuffer[3] = 0x02;
+            sendBuffer[4] = 0x02;//红外
+            sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
             qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
                                                        QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
         }
     );
+
     // 视频相关连接
     connect(m_connectionBtn, &QPushButton::clicked, [this]() {
         if (!m_isVideoPlaying) {
@@ -500,51 +666,84 @@ void MainWindow::createConnections()
         }
     });
 
+    //前视模式
+    connect(frontView, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x01;
+        sendBuffer[2] = 0x03;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+
+    //上
     connect(m_gimbalUpBtn, &QPushButton::clicked, [this]() {
         unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
-
-        // 帧头
-//        sendBuffer[0] = 0xC1;
-//        sendBuffer[1] = (enum SendEnum)0xFF;
-//        // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
-//        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
-//        // 发送UDP数据报并检查返回值
-//        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-//                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
-
-        sendBuffer[0] = 0xC1;
-        sendBuffer[1] = (enum SendEnum)0xFF;
-        sendBuffer[2] = 1;
-        sendBuffer[3] = angleStep->value();
-        // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
-        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
-        // 发送UDP数据报并检查返回值
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x01;
+        sendBuffer[2] = 0x03;
+        sendBuffer[3] = 0x00;
+        sendBuffer[4] = ((qRound(phiValue->text().toFloat())+stepValue->value())*32767/360) & 0xFF;
+        sendBuffer[5] = (((qRound(phiValue->text().toFloat())+stepValue->value())*32767/360) >> 8) & 0xFF;
+        sendBuffer[6] = (qRound(aziValue->text().toFloat())*32767/360) & 0xFF;
+        sendBuffer[7] = ((qRound(aziValue->text().toFloat())*32767/360) >> 8) & 0xFF;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
         qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
                                                    QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
     });
 
+    //下
     connect(m_gimbalDownBtn, &QPushButton::clicked, [this]() {
         unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
-
-        // 帧头
-//        sendBuffer[0] = 0xC1;
-//        sendBuffer[1] = (enum SendEnum)0xFF;
-//        // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
-//        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
-//        // 发送UDP数据报并检查返回值
-//        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-//                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
-
         sendBuffer[0] = 0xC1;
-        sendBuffer[1] = (enum SendEnum)0xFE;
+        sendBuffer[1] = 0xFE;
         sendBuffer[2] = 1;
-        sendBuffer[3] = angleStep->value();
+        sendBuffer[3] = stepValue->value();
         // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
         sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
         // 发送UDP数据报并检查返回值
         qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
                                                    QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
     });
+
+    //左
+    connect(m_gimbalDownBtn, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x01;
+        sendBuffer[2] = 0x03;
+        sendBuffer[3] = 0x00;
+        sendBuffer[4] = qRound(phiValue->text().toFloat()) & 0xFF;
+        sendBuffer[5] = (qRound(phiValue->text().toFloat()) >> 8) & 0xFF;
+        sendBuffer[6] = qRound(aziValue->text().toFloat()+stepValue->value()) & 0xFF;
+        sendBuffer[7] = ((qRound(aziValue->text().toFloat()+stepValue->value())%360) >> 8) & 0xFF;
+
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //右
+    connect(m_gimbalDownBtn, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xC1;
+        sendBuffer[1] = 0xFE;
+        sendBuffer[2] = 1;
+        sendBuffer[3] = stepValue->value();
+        // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
+        // 发送UDP数据报并检查返回值
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //前视模式
+
+    //扇扫模式
+
+    //周扫模式
 }
 
 // 更新帧率显示
@@ -651,15 +850,14 @@ void MainWindow::sendStartDetectCommand()
     unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
 
     // 帧头
-    sendBuffer[0] = 0xC1;
+    sendBuffer[0] = 0xCB;
     // 命令ID - 开始检测
-    sendBuffer[1] = (enum SendEnum)0x04;
-
-    sendBuffer[2] = (enum tarDetecteEnumBack)0x01;
-
+    sendBuffer[1] = 0x01;
+    sendBuffer[2] = 0x03;
     // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
-    sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
-
+    sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+    qDebug() << sendBuffer[15] ;
+    qDebug()<<QString("0x%1").arg(static_cast<quint8>(sendBuffer[15]),2,16,QLatin1Char('0'));
     // 发送UDP数据报并检查返回值
     qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
                                                QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
@@ -672,7 +870,7 @@ void MainWindow::sendStopDetectCommand()
     // 帧头
     sendBuffer[0] = 0xC1;
     // 命令ID - 停止检测
-    sendBuffer[1] = (enum SendEnum)0x02;
+    sendBuffer[1] = 0x02;
 
     // 计算校验和
     sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
@@ -698,7 +896,6 @@ void MainWindow::readPendingDatagrams()
         datagram.resize(udpSocket->pendingDatagramSize());
         QHostAddress sender;
         quint16 senderPort;
-
         udpSocket->readDatagram(datagram.data(), datagram.size(), &sender, &senderPort);
         parseReceivedData(datagram);
     }
@@ -706,82 +903,43 @@ void MainWindow::readPendingDatagrams()
 
 void MainWindow::parseReceivedData(const QByteArray &data)
 {
-    if (data.size() < 64) return; // 数据长度不足
+    StatusFeedbackPacket packet;
 
-    const unsigned char *buffer = reinterpret_cast<const unsigned char*>(data.constData());
+    if (data.size() != sizeof(StatusFeedbackPacket)) {
+        qWarning() << "数据长度不匹配，期望:" << sizeof(StatusFeedbackPacket)
+                   << "实际:" << data.size();
+        return;
+    }
+
+    // 拷贝数据到结构体
+    memcpy(&packet, data.constData(), sizeof(StatusFeedbackPacket));
 
     // 验证帧头
-    if (buffer[0] != 0xC3) return;
+    if (packet.frameHeader != 0xC0) {
+//        qWarning() << "帧头验证失败，期望:0xC0 实际:" << QString::number(packet.frameHeader, 16);
+        return; // 返回空对象
+    }
 
     // 验证校验和
-    unsigned char checksum = CalCheckNum(const_cast<unsigned char*>(&buffer[1]), data.size() - 2);
-    if (checksum != buffer[data.size() - 1]) return;
+    uint8_t calculatedChecksum = 0;
+    const uint8_t *temp = reinterpret_cast<const uint8_t*>(&packet);
 
-    // 解析命令ID
-    unsigned char cmdId = buffer[1];
-
-    if (cmdId == StateSend_DC) {
-        // 解析视场角信息
-        FLOAT2CHAR ftemp;
-
-        // 可见光视场角
-        memcpy(ftemp.arr, &buffer[2], 4);
-        visFov = ftemp.val;
-
-        // 红外视场角
-        memcpy(ftemp.arr, &buffer[6], 4);
-        irFov = ftemp.val;
-
-        // 目标数量
-        int targetCount = buffer[10];
-        detectedTargets.clear();
-
-        // 解析每个目标信息
-        for (int i = 0; i < targetCount && i < 20; i++) { // 限制最大20个目标
-            TargetInfo target;
-            int baseIndex = 11 + i * 19;
-
-            if (baseIndex + 18 >= data.size()) break; // 防止越界
-
-            target.id = i + 1;
-            target.targetClass = buffer[baseIndex + 1];
-
-            // 解析X坐标
-            unsigned int cx = 0;
-            cx |= (unsigned int)buffer[baseIndex + 3] << 24;
-            cx |= (unsigned int)buffer[baseIndex + 4] << 16;
-            cx |= (unsigned int)buffer[baseIndex + 5] << 8;
-            cx |= (unsigned int)buffer[baseIndex + 6];
-            target.cx = cx;
-
-            // 解析Y坐标
-            unsigned int cy = 0;
-            cy |= (unsigned int)buffer[baseIndex + 7] << 24;
-            cy |= (unsigned int)buffer[baseIndex + 8] << 16;
-            cy |= (unsigned int)buffer[baseIndex + 9] << 8;
-            cy |= (unsigned int)buffer[baseIndex + 10];
-            target.cy = cy;
-
-            // 解析方位角
-            memcpy(ftemp.arr, &buffer[baseIndex + 11], 4);
-            target.az = ftemp.val;
-
-            // 解析俯仰角
-            memcpy(ftemp.arr, &buffer[baseIndex + 15], 4);
-            target.pi = ftemp.val;
-
-            detectedTargets.append(target);
-
-            QString info = QString("目标 %1: 类别=%2, 坐标=(%3, %4), 方位角=%5, 俯仰角=%6")
-                            .arg(target.id)
-                            .arg(target.targetClass)
-                            .arg(target.cx)
-                            .arg(target.cy)
-                            .arg(target.az)
-                            .arg(target.pi);
-            qDebug() << info;
-        }
+    // 计算前63个字节的和
+    for (int i = 0; i < 63; ++i) {
+        calculatedChecksum += data[i];
     }
+    if (calculatedChecksum != packet.checksum) {
+        qWarning() << "校验和验证失败";
+        return;
+    }
+    aziValue->setText(QString::number(((float)packet.aziPosition/10000), 'f', 4));
+    phiValue->setText(QString::number(((float)packet.pitchPosition/10000), 'f', 4));
+    aziRateValue->setText(QString::number(((float)packet.aziVelocity*1024/32767), 'f', 4));
+    phiRateValue->setText(QString::number(((float)packet.pitchVelocity*1024/32767), 'f', 4));
+    qDebug() << "当前俯仰：" << (float)packet.pitchPosition/10000 << "度";
+    qDebug() << "当前方位：" << (float)packet.aziPosition/10000 << "度";
+    qDebug() << qRound(phiValue->text().toFloat()+stepValue->value());
+    qDebug() << qRound(aziValue->text().toFloat()+stepValue->value());
 }
 
 

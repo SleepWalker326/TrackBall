@@ -19,108 +19,65 @@ int main(int argc, char *argv[])
 #endif
 
 #if 0
-#include <QCoreApplication>
-#include <QUdpSocket>
-#include <QTimer>
-#include <QTime>
-#include <QDebug>
-int main(int argc, char *argv[])
-{
-    QCoreApplication app(argc, argv);
+#include <cstdint>   // 必须包含：定义uint16_t/uint8_t
+#include <QDebug>    // Qt打印（非必需，可替换为printf）
 
-    QUdpSocket *udpSocket = new QUdpSocket();
+/**
+ * @brief 判断当前系统是否为小端序（Little Endian）
+ * @return true: 小端序（x86/ARM主流架构）; false: 大端序（部分嵌入式/网络协议）
+ */
+bool isLittleEndian() {
+    // 定义16位测试值：0x0102（高位字节0x01，低位字节0x02）
+    const uint16_t testValue = 0x0102;
+    // 强制转换为uint8_t*，读取第一个字节（低地址字节）
+    const uint8_t firstByte = *reinterpret_cast<const uint8_t*>(&testValue);
 
-    // 绑定到具体IP
-    if (!udpSocket->bind(QHostAddress("192.168.1.211"), 40212)) {
-        qDebug() << "绑定失败:" << udpSocket->errorString();
-        return -1;
-    }
-
-    qDebug() << "🚀 UDP发送器已启动";
-    qDebug() << "本地地址:" << udpSocket->localAddress().toString();
-    qDebug() << "本地端口:" << udpSocket->localPort();
-    qDebug() << "目标地址: 192.168.1.100:40213";
-    qDebug() << "========================================";
-
-    QTimer timer;
-    int sendCount = 0;
-
-    QObject::connect(&timer, &QTimer::timeout, [udpSocket, &sendCount]() {
-        sendCount++;
-        QString timestamp = QTime::currentTime().toString("hh:mm:ss.zzz");
-
-
-        // 二进制数据
-        unsigned char binaryData[] = {
-            0x48, 0x45, 0x4C, 0x4C, 0x4F,  // HELLO
-            0x00, 0x01, 0x02, 0x03,        // 一些二进制
-            0xAA, 0xBB, 0xCC, 0xDD         // 更多二进制
-        };
-        qint64 bytesSent = udpSocket->writeDatagram(
-            reinterpret_cast<char*>(binaryData),
-            sizeof(binaryData),
-            QHostAddress("192.168.1.100"),
-            40213
-        );
-        qDebug() << "🔢 发送二进制数据 #" << sendCount << ":" << (bytesSent > 0 ? "成功" : "失败") << "- 大小:" << sizeof(binaryData) << "字节";
-
-
-        if (sendCount >= 15) {
-            qDebug() << "========================================";
-            qDebug() << "✅ 测试完成，共发送15次数据";
-            QCoreApplication::quit();
-        }
-    });
-
-    timer.start(1000);  // 每秒发送一次
-
-    return app.exec();
+    // 小端序：低地址存低位字节（0x02）；大端序：低地址存高位字节（0x01）
+    return (firstByte == 0x02);
 }
-#endif
 
-#if 0
-#include <QCoreApplication>
-#include <QUdpSocket>
-#include <QTimer>
-#include <QTime>
-#include <QDebug>
-int main(int argc, char *argv[])
-{
-    QCoreApplication app(argc, argv);
+// 扩展：直接返回字节序类型（更易读）
+enum EndianType {
+    LittleEndian,  // 小端
+    BigEndian,     // 大端
+    UnknownEndian  // 罕见：混合端（极少遇到）
+};
 
-    QUdpSocket *udpSocket = new QUdpSocket();
+EndianType getSystemEndian() {
+    uint32_t testValue = 0x01020304; // 32位测试值，覆盖更多字节场景
+    uint8_t* bytes = reinterpret_cast<uint8_t*>(&testValue);
 
-    // 绑定到具体IP
-    if (!udpSocket->bind(QHostAddress("192.168.1.211"), 40212)) {
-        qDebug() << "绑定失败:" << udpSocket->errorString();
-        return -1;
+    if (bytes[0] == 0x04 && bytes[1] == 0x03 && bytes[2] == 0x02 && bytes[3] == 0x01) {
+        return LittleEndian; // 小端：低地址→04 03 02 01
+    } else if (bytes[0] == 0x01 && bytes[1] == 0x02 && bytes[2] == 0x03 && bytes[3] == 0x04) {
+        return BigEndian;    // 大端：低地址→01 02 03 04
+    } else {
+        return UnknownEndian;// 混合端（几乎不会遇到）
+    }
+}
+int main() {
+    // 极简判断
+    if (isLittleEndian()) {
+        qDebug() << "当前系统是小端序（Little Endian）";
+    } else {
+        qDebug() << "当前系统是大端序（Big Endian）";
     }
 
-    qDebug() << "🚀 UDP发送器已启动";
-    qDebug() << "本地地址:" << udpSocket->localAddress().toString();
-    qDebug() << "本地端口:" << udpSocket->localPort();
-    qDebug() << "目标地址: 192.168.1.100:40213";
-    qDebug() << "========================================";
-
-    while(1)
-    {
-//        if (udpSocket->hasPendingDatagrams()) {
-//            qDebug() << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz") << "接收成功！";
-//            break;
-//        }
-//        else
-//            qDebug() << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz") << "接收失败！";
-        if (udpSocket->hasPendingDatagrams()) {
-            QByteArray datagram;
-            datagram.resize(udpSocket->pendingDatagramSize());
-
-            udpSocket->readDatagram(datagram.data(), datagram.size());
-            const unsigned char *buffer = reinterpret_cast<const unsigned char*>(datagram.constData());
-            qDebug() << buffer[0];
-        }
+    // 详细类型判断
+    EndianType endian = getSystemEndian();
+    switch (endian) {
+        case LittleEndian:
+            qDebug() << "字节序：小端（主流x86/ARM架构）";
+            break;
+        case BigEndian:
+            qDebug() << "字节序：大端（部分嵌入式/网络设备）";
+            break;
+        case UnknownEndian:
+            qDebug() << "字节序：混合端（罕见）";
+            break;
     }
 
-    return app.exec();
+    return 0;
 }
 #endif
 
