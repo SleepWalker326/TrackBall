@@ -100,8 +100,6 @@ private:
     QWidget *m_controlPanelWidget;
 
     // 云台控制组件
-
-
     QLabel *step;
     QSpinBox *stepValue;
     QLabel *aziRate;
@@ -124,6 +122,9 @@ private:
     QLabel *phiValue;
     QPushButton *sectorScan;
     QPushButton *circularScan;
+    QPushButton *stopScan;
+    QLabel *scanPhi;
+    QLineEdit *scanPhiValue;
     QLabel *scanRate;
     QLineEdit *scanRateValue;
     QLabel *scanRange;

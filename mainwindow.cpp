@@ -140,12 +140,36 @@ void MainWindow::createDisplayArea()
     displayContainer->setFixedSize(640, 512);
     QVBoxLayout *containerLayout = new QVBoxLayout(displayContainer);
 
-    m_displayImageLabel = new QLabel("显示图像");
-    m_displayImageLabel->setFixedSize(640, 512);
-    m_displayImageLabel->setAlignment(Qt::AlignCenter);
-    m_displayImageLabel->setStyleSheet("border: 1px solid gray; background-color: #f0f0f0;");
+//    m_displayImageLabel = new QLabel("显示图像");
+//    m_displayImageLabel->setFixedSize(640, 512);
+//    m_displayImageLabel->setAlignment(Qt::AlignCenter);
+//    m_displayImageLabel->setStyleSheet("border: 1px solid gray; background-color: #f0f0f0;");
+//    containerLayout->addWidget(m_displayImageLabel);
 
-    containerLayout->addWidget(m_displayImageLabel);
+    m_displayImageLabel = new QLabel(displayContainer);
+    m_displayImageLabel->setFixedSize(640, 512);
+    // 创建固定文字区域的QLabel（叠加在视频上面）
+    QLabel* textOverlay = new QLabel(displayContainer);
+    textOverlay->setGeometry(10, 10, 300, 150);  // 固定位置和大小
+    textOverlay->setStyleSheet(
+        "QLabel {"
+        "    background-color: rgba(0, 0, 0, 0.7);"  // 半透明黑色背景
+        "    color: #00FF00;"  // 绿色文字
+        "    font-size: 14px;"
+        "    font-weight: bold;"
+        "    border: 2px solid #00FF00;"  // 绿色边框
+        "    border-radius: 8px;"  // 圆角
+        "    padding: 10px;"  // 内边距
+        "}"
+    );
+    textOverlay->raise();
+
+    // 设置文字内容（不会随视频改变）
+    textOverlay->setText("系统状态\n"
+                         "模式: 跟踪\n"
+                         "距离: 1234.5 m\n"
+                         "方位: 45.6°\n"
+                         "俯仰: 12.3°");
 }
 
 void MainWindow::createControlPanel()
@@ -158,7 +182,7 @@ void MainWindow::createControlPanel()
 
     // 创建TabWidget
     QTabWidget *controlTabWidget = new QTabWidget();
-    controlTabWidget->setFixedSize(591, 291);  // 调整高度，为表格留出空间
+    controlTabWidget->setFixedSize(591, 321);  // 调整高度，为表格留出空间
 
     // 创建各个控制模块的Tab页
     createGimbalControl();
@@ -172,23 +196,23 @@ void MainWindow::createControlPanel()
 
     // 创建表格区域
     QWidget *tableWidget = new QWidget();
-    tableWidget->setFixedSize(591, 300);  // 表格区域高度
+    tableWidget->setFixedSize(591, 280);  // 表格区域高度
     QVBoxLayout *tableLayout = new QVBoxLayout(tableWidget);
 
     // 创建表格标题
-    QLabel *tableTitle = new QLabel("目标信息");
+    QLabel *tableTitle = new QLabel();
     tableTitle->setAlignment(Qt::AlignCenter);
     tableTitle->setStyleSheet("font-weight: bold; font-size: 14px; margin: 5px;");
 
     // 创建表格（暂时留空，不编辑内容）
     m_dataTable = new QTableWidget();
-    m_dataTable->setFixedSize(581, 300);
+    m_dataTable->setFixedSize(581, 230);
     m_dataTable->setColumnCount(4);  // 设置4列
-    m_dataTable->setRowCount(5);     // 设置5行
+    m_dataTable->setRowCount(20);     // 设置5行
 
     // 设置表头
     QStringList headers;
-    headers << "时间" << "参数1" << "参数2" << "状态";
+    headers << "目标类别" << "目标俯仰角" << "目标方位角" << "目标状态";
     m_dataTable->setHorizontalHeaderLabels(headers);
 
     // 设置表格样式
@@ -211,7 +235,7 @@ void MainWindow::createGimbalControl()
 {
     // 改为创建普通Widget而不是GroupBox
     m_gimbalWidget = new QWidget();
-    m_gimbalWidget->setFixedSize(591, 281); // 调整高度以适应Tab页
+    m_gimbalWidget->setFixedSize(591, 301); // 调整高度以适应Tab页
 
     QGridLayout *mainLayout = new QGridLayout(m_gimbalWidget);
 
@@ -256,11 +280,11 @@ void MainWindow::createGimbalControl()
     frontView->setFixedSize(100,40);
     frontViewAzi = new QLabel("前视方位");
     frontViewAzi->setFixedSize(70,40);
-    frontViewAziValue = new QLineEdit();
+    frontViewAziValue = new QLineEdit("0");
     frontViewAziValue->setFixedSize(70,25);
     frontViewPhi = new QLabel("前视俯仰");
     frontViewPhi->setFixedSize(70,40);
-    frontViewPhiValue = new QLineEdit();
+    frontViewPhiValue = new QLineEdit("0");
     frontViewPhiValue->setFixedSize(70,25);
     QHBoxLayout *frontViewAzilayout = new QHBoxLayout();
     frontViewAzilayout->addWidget(frontViewAzi);
@@ -320,31 +344,42 @@ void MainWindow::createGimbalControl()
     sectorScan->setFixedSize(100,40);
     circularScan = new QPushButton("周扫模式");
     circularScan->setFixedSize(100,40);
+    stopScan = new QPushButton("停止扫描");
+    stopScan->setFixedSize(100,40);
     QVBoxLayout *scanBtnlayout = new QVBoxLayout();
     scanBtnlayout->addWidget(sectorScan);
     scanBtnlayout->addWidget(circularScan);
+    scanBtnlayout->addWidget(stopScan);
+    scanPhi = new QLabel("扫描俯仰");
+    scanPhi->setFixedSize(70,40);
+    scanPhiValue = new QLineEdit("0");
+    scanPhiValue->setFixedSize(70,25);
+    QHBoxLayout *scanPhilayout = new QHBoxLayout();
+    scanPhilayout->addWidget(scanPhi);
+    scanPhilayout->addWidget(scanPhiValue);
     scanRate = new QLabel("扫描速度");
     scanRate->setFixedSize(70,40);
-    scanRateValue = new QLineEdit();
+    scanRateValue = new QLineEdit("0");
     scanRateValue->setFixedSize(70,25);
     QHBoxLayout *scanRatelayout = new QHBoxLayout();
     scanRatelayout->addWidget(scanRate);
     scanRatelayout->addWidget(scanRateValue);
     scanRange = new QLabel("扫描范围");
     scanRange->setFixedSize(70,40);
-    scanRangeValue = new QLineEdit();
+    scanRangeValue = new QLineEdit("0");
     scanRangeValue->setFixedSize(70,25);
     QHBoxLayout *scanRangelayout = new QHBoxLayout();
     scanRangelayout->addWidget(scanRange);
     scanRangelayout->addWidget(scanRangeValue);
     scanCenter = new QLabel("扫描中心");
     scanCenter->setFixedSize(70,40);
-    scanCenterValue = new QLineEdit();
+    scanCenterValue = new QLineEdit("0");
     scanCenterValue->setFixedSize(70,25);
     QHBoxLayout *scanCenterlayout = new QHBoxLayout();
     scanCenterlayout->addWidget(scanCenter);
     scanCenterlayout->addWidget(scanCenterValue);
     QVBoxLayout *scanlayout = new QVBoxLayout();
+    scanlayout->addLayout(scanPhilayout);
     scanlayout->addLayout(scanRatelayout);
     scanlayout->addLayout(scanRangelayout);
     scanlayout->addLayout(scanCenterlayout);
@@ -672,6 +707,11 @@ void MainWindow::createConnections()
         sendBuffer[0] = 0xCB;
         sendBuffer[1] = 0x01;
         sendBuffer[2] = 0x03;
+        sendBuffer[3] = 0x00;
+        sendBuffer[4] = ((frontViewPhiValue->text().toInt())*32767/360) & 0xFF;
+        sendBuffer[5] = (((frontViewPhiValue->text().toInt())*32767/360) >> 8) & 0xFF;
+        sendBuffer[6] = ((frontViewAziValue->text().toInt())*32767/360) & 0xFF;
+        sendBuffer[7] = (((frontViewAziValue->text().toInt())*32767/360) >> 8) & 0xFF;
         sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
         qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
                                                    QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
@@ -697,53 +737,98 @@ void MainWindow::createConnections()
     //下
     connect(m_gimbalDownBtn, &QPushButton::clicked, [this]() {
         unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
-        sendBuffer[0] = 0xC1;
-        sendBuffer[1] = 0xFE;
-        sendBuffer[2] = 1;
-        sendBuffer[3] = stepValue->value();
-        // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
-        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
-        // 发送UDP数据报并检查返回值
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x01;
+        sendBuffer[2] = 0x03;
+        sendBuffer[3] = 0x00;
+        sendBuffer[4] = ((qRound(phiValue->text().toFloat())-stepValue->value())*32767/360) & 0xFF;
+        sendBuffer[5] = (((qRound(phiValue->text().toFloat())-stepValue->value())*32767/360) >> 8) & 0xFF;
+        sendBuffer[6] = (qRound(aziValue->text().toFloat())*32767/360) & 0xFF;
+        sendBuffer[7] = ((qRound(aziValue->text().toFloat())*32767/360) >> 8) & 0xFF;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
         qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
                                                    QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
     });
 
     //左
-    connect(m_gimbalDownBtn, &QPushButton::clicked, [this]() {
+    connect(m_gimbalLeftBtn, &QPushButton::clicked, [this]() {
         unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
         sendBuffer[0] = 0xCB;
         sendBuffer[1] = 0x01;
         sendBuffer[2] = 0x03;
         sendBuffer[3] = 0x00;
-        sendBuffer[4] = qRound(phiValue->text().toFloat()) & 0xFF;
-        sendBuffer[5] = (qRound(phiValue->text().toFloat()) >> 8) & 0xFF;
-        sendBuffer[6] = qRound(aziValue->text().toFloat()+stepValue->value()) & 0xFF;
-        sendBuffer[7] = ((qRound(aziValue->text().toFloat()+stepValue->value())%360) >> 8) & 0xFF;
-
+        sendBuffer[4] = (qRound(phiValue->text().toFloat())*32767/360) & 0xFF;
+        sendBuffer[5] = ((qRound(phiValue->text().toFloat())*32767/360) >> 8) & 0xFF;
+        sendBuffer[6] = ((qRound(aziValue->text().toFloat())+stepValue->value())%360*32767/360) & 0xFF;
+        sendBuffer[7] = ((qRound(aziValue->text().toFloat()+stepValue->value())%360*32767/360) >> 8) & 0xFF;
         sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
         qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
                                                    QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
     });
 
     //右
-    connect(m_gimbalDownBtn, &QPushButton::clicked, [this]() {
+    connect(m_gimbalRightBtn, &QPushButton::clicked, [this]() {
         unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
-        sendBuffer[0] = 0xC1;
-        sendBuffer[1] = 0xFE;
-        sendBuffer[2] = 1;
-        sendBuffer[3] = stepValue->value();
-        // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
-        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
-        // 发送UDP数据报并检查返回值
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x01;
+        sendBuffer[2] = 0x03;
+        sendBuffer[3] = 0x00;
+        sendBuffer[4] = (qRound(phiValue->text().toFloat())*32767/360) & 0xFF;
+        sendBuffer[5] = ((qRound(phiValue->text().toFloat())*32767/360) >> 8) & 0xFF;
+        sendBuffer[6] = ((qRound(aziValue->text().toFloat())-stepValue->value()+360)%360*32767/360) & 0xFF;
+        sendBuffer[7] = ((qRound(aziValue->text().toFloat()-stepValue->value()+360)%360*32767/360) >> 8) & 0xFF;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
         qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
                                                    QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
     });
 
-    //前视模式
-
     //扇扫模式
-
+    connect(sectorScan, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x01;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x00;
+        sendBuffer[4] = (scanPhiValue->text().toInt()*32767/360) & 0xFF;
+        sendBuffer[5] = ((scanPhiValue->text().toInt()*32767/360) >> 8) & 0xFF;
+        sendBuffer[6] = (scanRateValue->text().toInt()*32767/360) & 0xFF;
+        sendBuffer[7] = ((scanRateValue->text().toInt()*32767/360) >> 8) & 0xFF;
+        sendBuffer[8] = (scanRangeValue->text().toInt()*32767/360) & 0xFF;
+        sendBuffer[9] = ((scanRangeValue->text().toInt()*32767/360) >> 8) & 0xFF;
+        sendBuffer[10] = (scanCenterValue->text().toInt()*32767/360) & 0xFF;
+        sendBuffer[11] = ((scanCenterValue->text().toInt()*32767/360) >> 8) & 0xFF;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
     //周扫模式
+    connect(circularScan, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x01;
+        sendBuffer[2] = 0x06;
+        sendBuffer[3] = 0x00;
+        sendBuffer[4] = (scanPhiValue->text().toInt()*32767/360) & 0xFF;
+        sendBuffer[5] = ((scanPhiValue->text().toInt()*32767/360) >> 8) & 0xFF;
+        sendBuffer[6] = (scanRateValue->text().toInt()*32767/360) & 0xFF;
+        sendBuffer[7] = ((scanRateValue->text().toInt()*32767/360) >> 8) & 0xFF;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+    //停止扫描
+    connect(stopScan, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x01;
+        sendBuffer[2] = 0x06;
+        sendBuffer[3] = 0x00;
+        sendBuffer[4] = (scanPhiValue->text().toInt()*32767/360) & 0xFF;
+        sendBuffer[5] = ((scanPhiValue->text().toInt()*32767/360) >> 8) & 0xFF;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
 }
 
 // 更新帧率显示
@@ -932,14 +1017,68 @@ void MainWindow::parseReceivedData(const QByteArray &data)
         qWarning() << "校验和验证失败";
         return;
     }
+    if (packet.systemFaultInfo.bits.servoFault)
+        QMessageBox::information(this, "伺服故障", "伺服系统发生故障！");
+    if (packet.systemFaultInfo.bits.trackerFault)
+        QMessageBox::information(this, "跟踪故障", "跟踪系统发生故障！");
+    if (packet.systemFaultInfo.bits.thermalFault)
+        QMessageBox::information(this, "热像故障", "热像系统发生故障！");
+    if (packet.systemFaultInfo.bits.whiteLightFault)
+        QMessageBox::information(this, "白光故障", "白光系统发生故障！");
+    if (packet.systemFaultInfo.bits.laserFault)
+        QMessageBox::information(this, "激光故障", "激光系统发生故障！");
     aziValue->setText(QString::number(((float)packet.aziPosition/10000), 'f', 4));
     phiValue->setText(QString::number(((float)packet.pitchPosition/10000), 'f', 4));
     aziRateValue->setText(QString::number(((float)packet.aziVelocity*1024/32767), 'f', 4));
     phiRateValue->setText(QString::number(((float)packet.pitchVelocity*1024/32767), 'f', 4));
-    qDebug() << "当前俯仰：" << (float)packet.pitchPosition/10000 << "度";
-    qDebug() << "当前方位：" << (float)packet.aziPosition/10000 << "度";
-    qDebug() << qRound(phiValue->text().toFloat()+stepValue->value());
-    qDebug() << qRound(aziValue->text().toFloat()+stepValue->value());
+
+//    QString statusText;
+//    QColor textColor;
+//    textColor = Qt::green;  // 故障时用红色
+
+//    switch (packet.systemMainMode) {
+//        case StatusFeedbackPacket::MODE_INIT:
+//            statusText = "初始模式\n";
+//            break;
+//        case StatusFeedbackPacket::MODE_PARKING:
+//            statusText = "停车模式\n";
+//            break;
+//        case StatusFeedbackPacket::MODE_SELF_TEST:
+//            statusText = "自检模式\n";
+//            break;
+//        case StatusFeedbackPacket::MODE_FORWARD_VIEW:
+//            statusText = "前视模式\n";
+//            break;
+//        case StatusFeedbackPacket::MODE_SECTOR_SCAN:
+//            statusText = "扇扫模式\n";
+//            break;
+//        case StatusFeedbackPacket::MODE_TRACKING:
+//            statusText = "跟踪模式\n";
+//            break;
+//        case StatusFeedbackPacket::MODE_PERIMETER_SCAN:
+//            statusText = "周扫模式\n";
+//            break;
+//        case StatusFeedbackPacket::MODE_DEBUG:
+//            statusText = "调试模式\n";
+//            break;
+//    }
+
+//    // 使用富文本
+//    QString html = QString("<div style='"
+//                          "color: %1;"
+//                          "font-size: 14px;"
+//                          "font-weight: bold;"
+//                          "background-color: rgba(0,0,0,0.7);"
+//                          "padding: 8px;"
+//                          "border-radius: 5px;"
+//                          "position: absolute;"
+//                          "top: 20px;"
+//                          "right: 20px;"
+//                          "'>%2</div>")
+//                  .arg(textColor.name())
+//                  .arg(statusText.replace("\n", "<br>"));
+
+//    m_displayImageLabel->setText(html + "<br><br><br><br><br>");
 }
 
 
