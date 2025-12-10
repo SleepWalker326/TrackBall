@@ -23,6 +23,8 @@
 #include <QSpinBox>
 #include <QTableWidget>
 #include <QtGlobal>
+#include <QIntValidator>
+
 #include "videoplayer.h"  // 添加头文件包含
 #include "mediarecorder.h"
 #include "statusfeedbackpacket.h"
@@ -62,14 +64,18 @@ private:
     QWidget* createInfoArea();
     void createControlButtons();
     void createGimbalControl();
-    void createLensControl();
-    void createImageControl();
+    void createIrImagControl();
+    void createVisImageControl();
+    void createLaserControl();
+    void createControl();
     void createConnections();
     void createControlPanel();
     void sendStartDetectCommand();
     void sendStopDetectCommand();
     unsigned char CalCheckNum(unsigned char data[], int num);
     void parseReceivedData(const QByteArray &data);
+
+    QWidget *m_centralWidget;
 
     // 主显示区域组件
     QWidget *m_mainDisplayWidget;
@@ -84,8 +90,10 @@ private:
     QLabel *m_timestampValueLabel;
 
     QWidget *m_gimbalWidget;
-    QWidget *m_lensWidget;
-    QWidget *m_imageWidget;
+    QWidget *m_irImagWidget;
+    QWidget *m_visImageWidget;
+    QWidget *m_laserWidget;
+    QWidget *m_controlWidget;
     QWidget *m_rightPanelWidget;
     QTableWidget  *m_dataTable;
     // 底部控制按钮
@@ -131,33 +139,73 @@ private:
     QLineEdit *scanRangeValue;
     QLabel *scanCenter;
     QLineEdit *scanCenterValue;
-    // 镜头控制组件
-    QGroupBox *m_lensGroup;
-    QLabel *m_zoomLabel;
-    QPushButton *m_zoomInBtn;
-    QPushButton *m_zoomOutBtn;
-    QLabel *m_fovLabel;
-    QPushButton *m_fovLargeBtn;
-    QPushButton *m_fovSmallBtn;
-    QPushButton *m_autoFocusBtn;
-    QPushButton *m_lensResetBtn;
+    // 热像图像操作组件
+    QPushButton *irSelfCheck;
+    QPushButton *NUC;
+    QComboBox *NUCValue;
+    QPushButton *ShutterCorrection;
+    QComboBox *ShutterCorrectionValue;
+    QPushButton *imagePolarity;
+    QComboBox *imagePolarityValue;
+    QPushButton *imageFlip;
+    QComboBox *imageFlipValue;
+    QPushButton *irContrast;
+    QLineEdit *irContrastValue;
+    QPushButton *irBrightness;
+    QLineEdit *irBrightnessValue;
+    QPushButton *DDEEnhancement;
+    QComboBox *DDEEnhancementValue;
+    QPushButton *temporalFiltering;
+    QComboBox *temporalFilteringValue;
+    QPushButton *irElectronicZoom;
+    QComboBox *irElectronicZoomValue;
+    QPushButton *spatialFiltering;
+    QComboBox *spatialFilteringValue;
+    QPushButton *irCrossHair;
+    QComboBox *irCrossHairValue;
+    // 白光操作组件
+    QPushButton *visSelfCheck;
+    QPushButton *visBrightness;
+    QLineEdit *visBrightnessValue;
+    QPushButton *visContrast;
+    QLineEdit *visContrastValue;
+    QLabel *sharpness;
+    QPushButton *sharpnessReset;
+    QPushButton *sharpnessDecrease;
+    QPushButton *sharpnessIncrease;
+    QLabel *FOV;
+    QPushButton *FOVstop;
+    QPushButton *FOVNarrow;
+    QPushButton *FOVWide;
+    QLabel *visElectronicZoom;
+    QPushButton *visElectronicZoomOff;
+    QPushButton *visElectronicZoomOn;
+    QLabel *focus;
+    QPushButton *focusStop;
+    QPushButton *focusIncrease;
+    QPushButton *focusDecrease;
+    QLabel *gain;
+    QPushButton *gainReset;
+    QPushButton *gainIncrease;
+    QPushButton *gainDecrease;
+    QLabel *visCrossHair;
+    QPushButton *visCrossHairOff;
+    QPushButton *visCrossHairOn;
+    QPushButton *FOVSwitch;
+    QLineEdit *FOVSwitchValue;
+    QPushButton *manualFocus;
+    QPushButton *autoFocus;
+    QPushButton *semiAutoFocus;
 
-    // 图像控制组件
-    QGroupBox *m_imageGroup;
-//    QComboBox *m_imageTypeCombo;
-//    QComboBox *m_videoSourceCombo;
+    // 控制组件
     QPushButton *m_imageType_vis;
     QPushButton *m_imageType_ir;
     QPushButton *m_videoSource_stream;
     QPushButton *m_videoSource_local;
-    QLabel *m_brightnessLabel;
-    QPushButton *m_brightnessUpBtn;
-    QPushButton *m_brightnessDownBtn;
-    QLabel *m_contrastLabel;
-    QPushButton *m_contrastUpBtn;
-    QPushButton *m_contrastDownBtn;
-    QWidget *m_centralWidget;
-
+    //激光控制组件
+    QPushButton *laserSelfcheck;
+    QPushButton *laserDis;
+    QComboBox *laserDisValue;
     // 视频播放相关
     VideoPlayer *m_videoPlayer;
     bool m_isVideoPlaying;

@@ -20,7 +20,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_mediaRecorder = new MediaRecorder(this);
 
     setWindowTitle("智能光电球显示界面");
-    resize(1500, 815);
+    resize(1500, 715);
 }
 
 MainWindow::~MainWindow()
@@ -42,19 +42,6 @@ void MainWindow::createUI()
     // 创建主显示区域和右侧控制面板
     createMainArea();
     mainLayout->addWidget(m_mainDisplayWidget);
-
-    // 创建底部控制按钮区域
-    createControlButtons();
-    QWidget *bottomControlWidget = new QWidget();
-    QHBoxLayout *bottomLayout = new QHBoxLayout(bottomControlWidget);
-    bottomLayout->addWidget(m_connectionBtn);
-    bottomLayout->addWidget(m_startDetectionBtn);
-    bottomLayout->addWidget(m_multiTargetTrackBtn);
-    bottomLayout->addWidget(m_singleTargetTrackBtn);
-    bottomLayout->addWidget(m_startRecordBtn);
-    bottomLayout->addWidget(m_screenshotBtn);
-
-    mainLayout->addWidget(bottomControlWidget);
 
     // 创建状态栏
     statusBar();
@@ -140,63 +127,41 @@ void MainWindow::createDisplayArea()
     displayContainer->setFixedSize(640, 512);
     QVBoxLayout *containerLayout = new QVBoxLayout(displayContainer);
 
-//    m_displayImageLabel = new QLabel("显示图像");
-//    m_displayImageLabel->setFixedSize(640, 512);
-//    m_displayImageLabel->setAlignment(Qt::AlignCenter);
-//    m_displayImageLabel->setStyleSheet("border: 1px solid gray; background-color: #f0f0f0;");
-//    containerLayout->addWidget(m_displayImageLabel);
-
-    m_displayImageLabel = new QLabel(displayContainer);
+    m_displayImageLabel = new QLabel("显示图像");
     m_displayImageLabel->setFixedSize(640, 512);
-    // 创建固定文字区域的QLabel（叠加在视频上面）
-    QLabel* textOverlay = new QLabel(displayContainer);
-    textOverlay->setGeometry(10, 10, 300, 150);  // 固定位置和大小
-    textOverlay->setStyleSheet(
-        "QLabel {"
-        "    background-color: rgba(0, 0, 0, 0.7);"  // 半透明黑色背景
-        "    color: #00FF00;"  // 绿色文字
-        "    font-size: 14px;"
-        "    font-weight: bold;"
-        "    border: 2px solid #00FF00;"  // 绿色边框
-        "    border-radius: 8px;"  // 圆角
-        "    padding: 10px;"  // 内边距
-        "}"
-    );
-    textOverlay->raise();
-
-    // 设置文字内容（不会随视频改变）
-    textOverlay->setText("系统状态\n"
-                         "模式: 跟踪\n"
-                         "距离: 1234.5 m\n"
-                         "方位: 45.6°\n"
-                         "俯仰: 12.3°");
+    m_displayImageLabel->setAlignment(Qt::AlignCenter);
+    m_displayImageLabel->setStyleSheet("border: 1px solid gray; background-color: #f0f0f0;");
+    containerLayout->addWidget(m_displayImageLabel);
 }
 
 void MainWindow::createControlPanel()
 {
     // 创建右侧整体面板
     m_rightPanelWidget = new QWidget();
-    m_rightPanelWidget->setFixedSize(601, 591);
+    m_rightPanelWidget->setFixedSize(601, 701);
     QVBoxLayout *rightPanelLayout = new QVBoxLayout(m_rightPanelWidget);
     rightPanelLayout->setSpacing(10);  // 设置间距
 
     // 创建TabWidget
     QTabWidget *controlTabWidget = new QTabWidget();
-    controlTabWidget->setFixedSize(591, 321);  // 调整高度，为表格留出空间
+    controlTabWidget->setFixedSize(591, 341);  // 调整高度，为表格留出空间
 
     // 创建各个控制模块的Tab页
     createGimbalControl();
-    createLensControl();
-    createImageControl();
-
+    createIrImagControl();
+    createVisImageControl();
+    createLaserControl();
+    createControl();
     // 将各个控制模块添加到Tab页
     controlTabWidget->addTab(m_gimbalWidget, "云台控制");
-    controlTabWidget->addTab(m_lensWidget, "镜头控制");
-    controlTabWidget->addTab(m_imageWidget, "图像控制");
+    controlTabWidget->addTab(m_irImagWidget, "热像图像控制");
+    controlTabWidget->addTab(m_visImageWidget, "白光操作控制");
+    controlTabWidget->addTab(m_laserWidget, "激光操作控制");
+    controlTabWidget->addTab(m_controlWidget, "操作控制");
 
     // 创建表格区域
     QWidget *tableWidget = new QWidget();
-    tableWidget->setFixedSize(591, 280);  // 表格区域高度
+    tableWidget->setFixedSize(591, 300);  // 表格区域高度
     QVBoxLayout *tableLayout = new QVBoxLayout(tableWidget);
 
     // 创建表格标题
@@ -206,7 +171,7 @@ void MainWindow::createControlPanel()
 
     // 创建表格（暂时留空，不编辑内容）
     m_dataTable = new QTableWidget();
-    m_dataTable->setFixedSize(581, 230);
+    m_dataTable->setFixedSize(581, 280);
     m_dataTable->setColumnCount(4);  // 设置4列
     m_dataTable->setRowCount(20);     // 设置5行
 
@@ -223,12 +188,16 @@ void MainWindow::createControlPanel()
     m_dataTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
 
     // 添加到表格布局
-    tableLayout->addWidget(tableTitle);
+//    tableLayout->addWidget(tableTitle);
     tableLayout->addWidget(m_dataTable);
 
     // 将TabWidget和表格添加到右侧面板布局
+    rightPanelLayout->addStretch();
     rightPanelLayout->addWidget(controlTabWidget);
+    rightPanelLayout->addStretch();
     rightPanelLayout->addWidget(tableWidget);
+    rightPanelLayout->addStretch();
+
 }
 
 void MainWindow::createGimbalControl()
@@ -388,94 +357,361 @@ void MainWindow::createGimbalControl()
     mainLayout->addWidget(window4,1,1);
 }
 
-void MainWindow::createLensControl()
+void MainWindow::createIrImagControl()
 {
-    m_lensWidget = new QWidget();
-    m_lensWidget->setFixedSize(591, 320);
+    m_irImagWidget = new QWidget();
+    m_irImagWidget->setFixedSize(591, 330);
 
-    QVBoxLayout *mainLayout = new QVBoxLayout(m_lensWidget);
+    QGridLayout *mainLayout = new QGridLayout(m_irImagWidget);
 
-    // 变焦和视场控制
-    QWidget *controlWidget = new QWidget();
-    controlWidget->setFixedSize(591, 150);
-    QVBoxLayout *controlLayout = new QVBoxLayout(controlWidget);
+    //自检
+    irSelfCheck = new QPushButton("自检");
+    irSelfCheck->setFixedSize(80,30);
 
-    // 变焦控制
-    QWidget *zoomWidget = new QWidget();
-    zoomWidget->setFixedSize(591, 70);
-    QHBoxLayout *zoomLayout = new QHBoxLayout(zoomWidget);
+    //非均匀校正
+    NUC = new QPushButton("非均匀校正");
+    NUC->setFixedSize(80,30);
+    NUCValue = new QComboBox();
+    NUCValue->setFixedSize(70,30);
+    NUCValue->addItem("手动",0x00);
+    NUCValue->addItem("自动",0x01);
+    QHBoxLayout *NUClayout = new QHBoxLayout();
+    NUClayout->addWidget(NUC);
+    NUClayout->addWidget(NUCValue);
 
-    m_zoomLabel = new QLabel("变焦控制");
-    m_zoomLabel->setFixedSize(100, 40);
-    m_zoomLabel->setAlignment(Qt::AlignCenter);
-    m_zoomOutBtn = new QPushButton("-");
-    m_zoomInBtn = new QPushButton("+");
-    m_zoomInBtn->setFixedSize(50, 50);
-    m_zoomOutBtn->setFixedSize(50, 50);
+    // 快门校正
+    ShutterCorrection = new QPushButton("快门校正");
+    ShutterCorrection->setFixedSize(70,30);
+    ShutterCorrectionValue = new QComboBox();
+    ShutterCorrectionValue->setFixedSize(105,30);
+    ShutterCorrectionValue->addItem("背景校正",0x00);
+    ShutterCorrectionValue->addItem("双稳态快门",0x01);
+    QHBoxLayout *ShutterCorrectionlayout = new QHBoxLayout();
+    ShutterCorrectionlayout->addWidget(ShutterCorrection);
+    ShutterCorrectionlayout->addWidget(ShutterCorrectionValue);
 
-    zoomLayout->addStretch();
-    zoomLayout->addWidget(m_zoomOutBtn);
-    zoomLayout->addSpacing(20);
-    zoomLayout->addWidget(m_zoomLabel);
-    zoomLayout->addSpacing(20);
-    zoomLayout->addWidget(m_zoomInBtn);
-    zoomLayout->addStretch();
+    // 极性
+    imagePolarity = new QPushButton("极性");
+    imagePolarity->setFixedSize(70,30);
+    imagePolarityValue = new QComboBox();
+    imagePolarityValue->setFixedSize(70,30);
+    imagePolarityValue->addItem("白热",0x00);
+    imagePolarityValue->addItem("黑热",0x01);
+    QHBoxLayout *imagePolaritylayout = new QHBoxLayout();
+    imagePolaritylayout->addWidget(imagePolarity);
+    imagePolaritylayout->addWidget(imagePolarityValue);
 
-    // 视场控制
-    QWidget *fovWidget = new QWidget();
-    fovWidget->setFixedSize(591, 70);
-    QHBoxLayout *fovLayout = new QHBoxLayout(fovWidget);
+    // 图像翻转
+    imageFlip = new QPushButton("图像翻转");
+    imageFlip->setFixedSize(70,30);
+    imageFlipValue = new QComboBox();
+    imageFlipValue->setFixedSize(95,30);
+    imageFlipValue->addItem("不翻转",0x00);
+    imageFlipValue->addItem("上下翻转",0x01);
+    imageFlipValue->addItem("左右翻转",0x02);
+    imageFlipValue->addItem("对角翻转",0x03);
+    QHBoxLayout *imageFliplayout = new QHBoxLayout();
+    imageFliplayout->addWidget(imageFlip);
+    imageFliplayout->addWidget(imageFlipValue);
 
-    m_fovLabel = new QLabel("视场控制");
-    m_fovLabel->setFixedSize(100, 40);
-    m_fovLabel->setAlignment(Qt::AlignCenter);
-    m_fovSmallBtn = new QPushButton("小");
-    m_fovLargeBtn = new QPushButton("大");
-    m_fovLargeBtn->setFixedSize(50, 50);
-    m_fovSmallBtn->setFixedSize(50, 50);
+    //对比度
+    irContrast = new QPushButton("对比度");
+    irContrast->setFixedSize(70,30);
+    irContrastValue = new QLineEdit("128");
+    irContrastValue->setFixedSize(70,30);
+    irContrastValue->setPlaceholderText("0～255");
+    QHBoxLayout *irContrastlayout = new QHBoxLayout();
+    irContrastlayout->addWidget(irContrast);
+    irContrastlayout->addWidget(irContrastValue);
 
-    fovLayout->addStretch();
-    fovLayout->addWidget(m_fovSmallBtn);
-    fovLayout->addSpacing(20);
-    fovLayout->addWidget(m_fovLabel);
-    fovLayout->addSpacing(20);
-    fovLayout->addWidget(m_fovLargeBtn);
-    fovLayout->addStretch();
+    //亮度
+    irBrightness = new QPushButton("亮度");
+    irBrightness->setFixedSize(70,30);
+    irBrightnessValue = new QLineEdit("128");
+    irBrightnessValue->setFixedSize(70,30);
+    irBrightnessValue->setPlaceholderText("0～255");
+    QHBoxLayout *irBrightnesslayout = new QHBoxLayout();
+    irBrightnesslayout->addWidget(irBrightness);
+    irBrightnesslayout->addWidget(irBrightnessValue);
 
-    controlLayout->addWidget(zoomWidget);
-    controlLayout->addWidget(fovWidget);
+    // DDE增强
+    DDEEnhancement = new QPushButton("DDE增强");
+    DDEEnhancement->setFixedSize(70,30);
+    DDEEnhancementValue = new QComboBox();
+    DDEEnhancementValue->setFixedSize(70,30);
+    DDEEnhancementValue->addItem("1",0x01);
+    DDEEnhancementValue->addItem("2",0x02);
+    DDEEnhancementValue->addItem("3",0x03);
+    DDEEnhancementValue->addItem("4",0x04);
+    DDEEnhancementValue->addItem("5",0x05);
+    DDEEnhancementValue->addItem("6",0x06);
+    DDEEnhancementValue->addItem("7",0x07);
+    DDEEnhancementValue->addItem("8",0x08);
+    QHBoxLayout *DDEEnhancementlayout = new QHBoxLayout();
+    DDEEnhancementlayout->addWidget(DDEEnhancement);
+    DDEEnhancementlayout->addWidget(DDEEnhancementValue);
 
-    // 功能按钮
-    QWidget *functionWidget = new QWidget();
-    functionWidget->setFixedSize(591, 80);
-    QHBoxLayout *functionLayout = new QHBoxLayout(functionWidget);
+    //图像实域滤波
+    temporalFiltering = new QPushButton("图像实域滤波");
+    temporalFiltering->setFixedSize(100,30);
+    temporalFilteringValue = new QComboBox();
+    temporalFilteringValue->setFixedSize(80,30);
+    temporalFilteringValue->addItem("滤波关",0x00);
+    temporalFilteringValue->addItem("滤波开",0x01);
+    QHBoxLayout *temporalFilteringlayout = new QHBoxLayout();
+    temporalFilteringlayout->addWidget(temporalFiltering);
+    temporalFilteringlayout->addWidget(temporalFilteringValue);
 
-    m_autoFocusBtn = new QPushButton("自动聚焦");
-    m_lensResetBtn = new QPushButton("一键复位");
+    // 电子变倍
+    irElectronicZoom = new QPushButton("电子变倍");
+    irElectronicZoom->setFixedSize(70,30);
+    irElectronicZoomValue = new QComboBox();
+    irElectronicZoomValue->setFixedSize(70,30);
+    irElectronicZoomValue->addItem("1");
+    irElectronicZoomValue->addItem("2");
+    irElectronicZoomValue->addItem("3");
+    irElectronicZoomValue->addItem("4");
+    QHBoxLayout *irElectronicZoomlayout = new QHBoxLayout();
+    irElectronicZoomlayout->addWidget(irElectronicZoom);
+    irElectronicZoomlayout->addWidget(irElectronicZoomValue);
 
-    m_autoFocusBtn->setFixedSize(120, 40);
-    m_lensResetBtn->setFixedSize(120, 40);
+    //图像空域滤波
+    spatialFiltering = new QPushButton("图像空域滤波");
+    spatialFiltering->setFixedSize(100,30);
+    spatialFilteringValue = new QComboBox();
+    spatialFilteringValue->setFixedSize(80,30);
+    spatialFilteringValue->addItem("滤波关",0x00);
+    spatialFilteringValue->addItem("滤波开",0x01);
+    QHBoxLayout *spatialFilteringlayout = new QHBoxLayout();
+    spatialFilteringlayout->addWidget(spatialFiltering);
+    spatialFilteringlayout->addWidget(spatialFilteringValue);
 
-    functionLayout->addStretch();
-    functionLayout->addWidget(m_autoFocusBtn);
-    functionLayout->addSpacing(40);
-    functionLayout->addWidget(m_lensResetBtn);
-    functionLayout->addStretch();
+    //热像十字光标显隐
+    irCrossHair = new QPushButton("十字光标显隐");
+    irCrossHair->setFixedSize(100,30);
+    irCrossHairValue = new QComboBox();
+    irCrossHairValue->setFixedSize(70,30);
+    irCrossHairValue->addItem("隐藏",0x00);
+    irCrossHairValue->addItem("显示",0x01);
+    QHBoxLayout *irCrossHairlayout = new QHBoxLayout();
+    irCrossHairlayout->addWidget(irCrossHair);
+    irCrossHairlayout->addWidget(irCrossHairValue);
 
-    // 添加到主布局
-    mainLayout->addSpacing(30);
-    mainLayout->addWidget(controlWidget);
-    mainLayout->addSpacing(30);
-    mainLayout->addWidget(functionWidget);
+    mainLayout->addWidget(irSelfCheck,0,0);
+    mainLayout->addLayout(irCrossHairlayout,0,1);
+    mainLayout->addLayout(NUClayout,1,0);
+    mainLayout->addLayout(ShutterCorrectionlayout,1,1);
+    mainLayout->addLayout(imagePolaritylayout,2,0);
+    mainLayout->addLayout(imageFliplayout,2,1);
+    mainLayout->addLayout(irContrastlayout,3,0);
+    mainLayout->addLayout(irBrightnesslayout,3,1);
+    mainLayout->addLayout(DDEEnhancementlayout,4,0);
+    mainLayout->addLayout(irElectronicZoomlayout,4,1);
+    mainLayout->addLayout(temporalFilteringlayout,5,0);
+    mainLayout->addLayout(spatialFilteringlayout,5,1);
+
+}
+
+void MainWindow::createVisImageControl()
+{
+    m_visImageWidget = new QWidget();
+    m_visImageWidget->setFixedSize(591, 330);
+
+    QVBoxLayout *mainLayout = new QVBoxLayout(m_visImageWidget);
+
+    //亮度
+    visBrightness = new QPushButton("亮度");
+    visBrightness->setFixedSize(70,30);
+    visBrightnessValue = new QLineEdit("50");
+    visBrightnessValue->setFixedSize(50,30);
+    visBrightnessValue->setPlaceholderText("0～100");
+    QHBoxLayout *visBrightnesslayout = new QHBoxLayout();
+    visBrightnesslayout->addWidget(visBrightness);
+    visBrightnesslayout->addWidget(visBrightnessValue);
+
+    //对比度
+    visContrast = new QPushButton("对比度");
+    visContrast->setFixedSize(70,30);
+    visContrastValue = new QLineEdit("50");
+    visContrastValue->setFixedSize(50,30);
+    visContrastValue->setPlaceholderText("0～100");
+    QHBoxLayout *visContrastlayout = new QHBoxLayout();
+    visContrastlayout->addWidget(visContrast);
+    visContrastlayout->addWidget(visContrastValue);
+
+    //清晰度
+    sharpness = new QLabel("清晰度");
+    sharpness->setFixedSize(70,30);
+    sharpnessReset = new QPushButton("恢复");
+    sharpnessReset->setFixedSize(50,30);
+    sharpnessIncrease = new QPushButton("+");
+    sharpnessIncrease->setFixedSize(30,30);
+    sharpnessDecrease = new QPushButton("-");
+    sharpnessDecrease->setFixedSize(30,30);
+    QHBoxLayout *sharpnesslayout = new QHBoxLayout();
+    sharpnesslayout->addWidget(sharpness);
+    sharpnesslayout->addWidget(sharpnessReset);
+    sharpnesslayout->addWidget(sharpnessIncrease);
+    sharpnesslayout->addWidget(sharpnessDecrease);
+
+    //视场
+    FOV = new QLabel("视场");
+    FOV->setFixedSize(70,30);
+    FOVstop = new QPushButton("停止");
+    FOVstop->setFixedSize(50,30);
+    FOVNarrow = new QPushButton("窄");
+    FOVNarrow->setFixedSize(30,30);
+    FOVWide = new QPushButton("宽");
+    FOVWide->setFixedSize(30,30);
+    QHBoxLayout *FOVlayout = new QHBoxLayout();
+    FOVlayout->addWidget(FOV);
+    FOVlayout->addWidget(FOVstop);
+    FOVlayout->addWidget(FOVNarrow);
+    FOVlayout->addWidget(FOVWide);
+
+    // 电子变倍
+    visElectronicZoom = new QLabel("电子变倍");
+    visElectronicZoom->setFixedSize(70,30);
+    visElectronicZoomOff = new QPushButton("关");
+    visElectronicZoomOff->setFixedSize(30,30);
+    visElectronicZoomOn = new QPushButton("开");
+    visElectronicZoomOn->setFixedSize(30,30);
+    QHBoxLayout *visElectronicZoomlayout = new QHBoxLayout();
+    visElectronicZoomlayout->addWidget(visElectronicZoom);
+    visElectronicZoomlayout->addWidget(visElectronicZoomOff);
+    visElectronicZoomlayout->addWidget(visElectronicZoomOn);
+
+    //调焦
+    focus = new QLabel("调焦");
+    focus->setFixedSize(70,30);
+    focusStop = new QPushButton("停止");
+    focusStop->setFixedSize(50,30);
+    focusIncrease = new QPushButton("+");
+    focusIncrease->setFixedSize(30,30);
+    focusDecrease = new QPushButton("-");
+    focusDecrease->setFixedSize(30,30);
+    QHBoxLayout *focuslayout = new QHBoxLayout();
+    focuslayout->addWidget(focus);
+    focuslayout->addWidget(focusStop);
+    focuslayout->addWidget(focusIncrease);
+    focuslayout->addWidget(focusDecrease);
+
+    //增益
+    gain = new QLabel("增益");
+    gain->setFixedSize(70,30);
+    gainReset = new QPushButton("恢复");
+    gainReset->setFixedSize(50,30);
+    gainIncrease = new QPushButton("+");
+    gainIncrease->setFixedSize(30,30);
+    gainDecrease = new QPushButton("-");
+    gainDecrease->setFixedSize(30,30);
+    QHBoxLayout *gainlayout = new QHBoxLayout();
+    gainlayout->addWidget(gain);
+    gainlayout->addWidget(gainReset);
+    gainlayout->addWidget(gainIncrease);
+    gainlayout->addWidget(gainDecrease);
+
+    //白光十字光标显隐
+    visCrossHair = new QLabel("十字光标显隐");
+    visCrossHair->setFixedSize(100,30);
+    visCrossHairOff = new QPushButton("关");
+    visCrossHairOff->setFixedSize(30,30);
+    visCrossHairOn = new QPushButton("开");
+    visCrossHairOn->setFixedSize(30,30);
+    QHBoxLayout *visCrossHairlayout = new QHBoxLayout();
+    visCrossHairlayout->addWidget(visCrossHair);
+    visCrossHairlayout->addWidget(visCrossHairOff);
+    visCrossHairlayout->addWidget(visCrossHairOn);
+
+    //指定倍数视场切换
+    FOVSwitch = new QPushButton("指定倍数视场切换");
+    FOVSwitch->setFixedSize(130,30);
+    FOVSwitchValue = new QLineEdit("1");
+    FOVSwitchValue->setFixedSize(50,30);
+    FOVSwitchValue->setPlaceholderText("1～38");
+    QHBoxLayout *FOVSwitchlayout = new QHBoxLayout();
+    FOVSwitchlayout->addWidget(FOVSwitch);
+    FOVSwitchlayout->addWidget(FOVSwitchValue);
+
+    visSelfCheck = new QPushButton("自检");
+    visSelfCheck->setFixedSize(120,30);
+    manualFocus = new QPushButton("手动聚焦");
+    manualFocus->setFixedSize(120,30);
+    autoFocus = new QPushButton("自动聚焦");
+    autoFocus->setFixedSize(120,30);
+    semiAutoFocus = new QPushButton("半自动聚焦");
+    semiAutoFocus->setFixedSize(120,30);
+
+    QHBoxLayout *layout1 = new QHBoxLayout();
+    layout1->addStretch();
+    layout1->addLayout(visElectronicZoomlayout);
+    layout1->addStretch();
+    layout1->addLayout(visCrossHairlayout);
+    layout1->addStretch();
+    QHBoxLayout *layout2 = new QHBoxLayout();
+    layout2->addStretch();
+    layout2->addLayout(sharpnesslayout);
+    layout2->addStretch();
+    layout2->addLayout(FOVlayout);
+    layout2->addStretch();
+    QHBoxLayout *layout3 = new QHBoxLayout();
+    layout3->addStretch();
+    layout3->addLayout(gainlayout);
+    layout3->addStretch();
+    layout3->addLayout(focuslayout);
+    layout3->addStretch();
+    QHBoxLayout *layout4 = new QHBoxLayout();
+    layout4->addLayout(visBrightnesslayout);
+    layout4->addLayout(visContrastlayout);
+    layout4->addLayout(FOVSwitchlayout);
+    QHBoxLayout *visBtnlayout = new QHBoxLayout();
+    visBtnlayout->addWidget(visSelfCheck);
+    visBtnlayout->addWidget(manualFocus);
+    visBtnlayout->addWidget(autoFocus);
+    visBtnlayout->addWidget(semiAutoFocus);
+
+    mainLayout->addStretch();
+    mainLayout->addLayout(layout1);
+    mainLayout->addSpacing(20);
+    mainLayout->addLayout(layout2);
+    mainLayout->addSpacing(20);
+    mainLayout->addLayout(layout3);
+    mainLayout->addSpacing(20);
+    mainLayout->addLayout(layout4);
+    mainLayout->addSpacing(20);
+    mainLayout->addLayout(visBtnlayout);
     mainLayout->addStretch();
 }
 
-void MainWindow::createImageControl()
-{
-    m_imageWidget = new QWidget();
-    m_imageWidget->setFixedSize(591, 320);
+void MainWindow::createLaserControl() {
+    m_laserWidget = new QWidget();
+    m_laserWidget->setFixedSize(591, 330);
 
-    QVBoxLayout *mainLayout = new QVBoxLayout(m_imageWidget);
+    QHBoxLayout *mainLayout = new QHBoxLayout(m_laserWidget);
+    laserSelfcheck = new QPushButton("自检");
+    laserSelfcheck->setFixedSize(100, 35);
+    QHBoxLayout *laserDislayout = new QHBoxLayout();
+    laserDis = new QPushButton("测距");
+    laserDis->setFixedSize(100, 35);
+    laserDisValue = new QComboBox();
+    laserDisValue->setFixedSize(100, 35);
+    laserDisValue->addItem("停止测距",0x00);
+    laserDisValue->addItem("单次测距",0x01);
+    laserDisValue->addItem("1Hz重频",0x02);
+    laserDisValue->addItem("5Hz重频",0x03);
+    laserDislayout->addWidget(laserDis);
+    laserDislayout->addWidget(laserDisValue);
+    mainLayout->addWidget(laserSelfcheck);
+    mainLayout->addLayout(laserDislayout);
+
+}
+
+void MainWindow::createControl()
+{
+    m_controlWidget = new QWidget();
+    m_controlWidget->setFixedSize(591, 320);
+
+    QVBoxLayout *mainLayout = new QVBoxLayout(m_controlWidget);
 
     // 模式选择
     QWidget *modeWidget = new QWidget();
@@ -487,7 +723,7 @@ void MainWindow::createImageControl()
     imageTypeWidget->setFixedSize(591, 45);
     QHBoxLayout *imageTypeLayout = new QHBoxLayout(imageTypeWidget);
 
-    QLabel *imageTypeTitle = new QLabel("图像类型:");
+    QLabel *imageTypeTitle = new QLabel("图像类型");
     imageTypeTitle->setFixedSize(80, 30);
     m_imageType_ir = new QPushButton("红外");
     m_imageType_vis = new QPushButton("可见光");
@@ -505,7 +741,7 @@ void MainWindow::createImageControl()
     videoSourceWidget->setFixedSize(591, 45);
     QHBoxLayout *videoSourceLayout = new QHBoxLayout(videoSourceWidget);
 
-    QLabel *videoSourceTitle = new QLabel("视频源:");
+    QLabel *videoSourceTitle = new QLabel("视频源");
     videoSourceTitle->setFixedSize(80, 30);
     m_videoSource_stream = new QPushButton("推流视频");
     m_videoSource_local = new QPushButton("本地视频");
@@ -522,71 +758,42 @@ void MainWindow::createImageControl()
     modeLayout->addWidget(videoSourceWidget);
 
     // 亮度和对比度控制
-    QWidget *adjustWidget = new QWidget();
-    adjustWidget->setFixedSize(591, 150);
-    QVBoxLayout *adjustLayout = new QVBoxLayout(adjustWidget);
+    QWidget *controlWidget = new QWidget();
+    controlWidget->setFixedSize(591, 150);
+    QGridLayout *controlLayout = new QGridLayout(controlWidget);
 
-    // 亮度控制
-    QWidget *brightnessWidget = new QWidget();
-    brightnessWidget->setFixedSize(591, 70);
-    QHBoxLayout *brightnessLayout = new QHBoxLayout(brightnessWidget);
+    createControlButtons();
 
-    m_brightnessLabel = new QLabel("亮度控制");
-    m_brightnessLabel->setFixedSize(100, 40);
-    m_brightnessLabel->setAlignment(Qt::AlignCenter);
-    m_brightnessDownBtn = new QPushButton("-");
-    m_brightnessUpBtn = new QPushButton("+");
-    m_brightnessUpBtn->setFixedSize(50, 50);
-    m_brightnessDownBtn->setFixedSize(50, 50);
-
-    brightnessLayout->addStretch();
-    brightnessLayout->addWidget(m_brightnessDownBtn);
-    brightnessLayout->addSpacing(20);
-    brightnessLayout->addWidget(m_brightnessLabel);
-    brightnessLayout->addSpacing(20);
-    brightnessLayout->addWidget(m_brightnessUpBtn);
-    brightnessLayout->addStretch();
-
-    // 对比度控制
-    QWidget *contrastWidget = new QWidget();
-    contrastWidget->setFixedSize(591, 70);
-    QHBoxLayout *contrastLayout = new QHBoxLayout(contrastWidget);
-
-    m_contrastLabel = new QLabel("对比度控制");
-    m_contrastLabel->setFixedSize(100, 40);
-    m_contrastLabel->setAlignment(Qt::AlignCenter);
-    m_contrastDownBtn = new QPushButton("-");
-    m_contrastUpBtn = new QPushButton("+");
-    m_contrastUpBtn->setFixedSize(50, 50);
-    m_contrastDownBtn->setFixedSize(50, 50);
-
-    contrastLayout->addStretch();
-    contrastLayout->addWidget(m_contrastDownBtn);
-    contrastLayout->addSpacing(20);
-    contrastLayout->addWidget(m_contrastLabel);
-    contrastLayout->addSpacing(20);
-    contrastLayout->addWidget(m_contrastUpBtn);
-    contrastLayout->addStretch();
-
-    adjustLayout->addWidget(brightnessWidget);
-    adjustLayout->addWidget(contrastWidget);
+    controlLayout->addWidget(m_connectionBtn,0,0);
+    controlLayout->addWidget(m_singleTargetTrackBtn,0,1);
+    controlLayout->addWidget(m_screenshotBtn,0,2);
+    controlLayout->addWidget(m_startDetectionBtn,1,0);
+    controlLayout->addWidget(m_multiTargetTrackBtn,1,1);
+    controlLayout->addWidget(m_startRecordBtn,1,2);
 
     // 添加到主布局
     mainLayout->addSpacing(20);
     mainLayout->addWidget(modeWidget);
     mainLayout->addSpacing(20);
-    mainLayout->addWidget(adjustWidget);
+    mainLayout->addWidget(controlWidget);
     mainLayout->addStretch();
+
 }
 
 void MainWindow::createControlButtons()
 {
     m_connectionBtn = new QPushButton("连接");
+    m_connectionBtn->setFixedSize(120,35);
     m_startDetectionBtn = new QPushButton("开始检测");
+    m_startDetectionBtn->setFixedSize(120,35);
     m_multiTargetTrackBtn = new QPushButton("多目标跟踪");
+    m_multiTargetTrackBtn->setFixedSize(120,35);
     m_singleTargetTrackBtn = new QPushButton("单目标跟踪");
+    m_singleTargetTrackBtn->setFixedSize(120,35);
     m_startRecordBtn = new QPushButton("开始录制");
+    m_startRecordBtn->setFixedSize(120,35);
     m_screenshotBtn = new QPushButton("截图");
+    m_screenshotBtn->setFixedSize(120,35);
 }
 
 void MainWindow::createConnections()
@@ -603,8 +810,7 @@ void MainWindow::createConnections()
             sendBuffer[3] = 0x02;
             sendBuffer[4] = 0x01;//可见光
             sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
-            qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-                                                       QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+            qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
         }
     );
 
@@ -617,8 +823,7 @@ void MainWindow::createConnections()
             sendBuffer[3] = 0x02;
             sendBuffer[4] = 0x02;//红外
             sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
-            qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-                                                       QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+            qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
         }
     );
 
@@ -713,10 +918,8 @@ void MainWindow::createConnections()
         sendBuffer[6] = ((frontViewAziValue->text().toInt())*32767/360) & 0xFF;
         sendBuffer[7] = (((frontViewAziValue->text().toInt())*32767/360) >> 8) & 0xFF;
         sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
-        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
     });
-
 
     //上
     connect(m_gimbalUpBtn, &QPushButton::clicked, [this]() {
@@ -730,8 +933,7 @@ void MainWindow::createConnections()
         sendBuffer[6] = (qRound(aziValue->text().toFloat())*32767/360) & 0xFF;
         sendBuffer[7] = ((qRound(aziValue->text().toFloat())*32767/360) >> 8) & 0xFF;
         sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
-        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
     });
 
     //下
@@ -746,8 +948,7 @@ void MainWindow::createConnections()
         sendBuffer[6] = (qRound(aziValue->text().toFloat())*32767/360) & 0xFF;
         sendBuffer[7] = ((qRound(aziValue->text().toFloat())*32767/360) >> 8) & 0xFF;
         sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
-        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
     });
 
     //左
@@ -762,8 +963,7 @@ void MainWindow::createConnections()
         sendBuffer[6] = ((qRound(aziValue->text().toFloat())+stepValue->value())%360*32767/360) & 0xFF;
         sendBuffer[7] = ((qRound(aziValue->text().toFloat()+stepValue->value())%360*32767/360) >> 8) & 0xFF;
         sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
-        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
     });
 
     //右
@@ -778,8 +978,7 @@ void MainWindow::createConnections()
         sendBuffer[6] = ((qRound(aziValue->text().toFloat())-stepValue->value()+360)%360*32767/360) & 0xFF;
         sendBuffer[7] = ((qRound(aziValue->text().toFloat()-stepValue->value()+360)%360*32767/360) >> 8) & 0xFF;
         sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
-        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
     });
 
     //扇扫模式
@@ -798,9 +997,9 @@ void MainWindow::createConnections()
         sendBuffer[10] = (scanCenterValue->text().toInt()*32767/360) & 0xFF;
         sendBuffer[11] = ((scanCenterValue->text().toInt()*32767/360) >> 8) & 0xFF;
         sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
-        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
     });
+
     //周扫模式
     connect(circularScan, &QPushButton::clicked, [this]() {
         unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
@@ -813,9 +1012,9 @@ void MainWindow::createConnections()
         sendBuffer[6] = (scanRateValue->text().toInt()*32767/360) & 0xFF;
         sendBuffer[7] = ((scanRateValue->text().toInt()*32767/360) >> 8) & 0xFF;
         sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
-        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
     });
+
     //停止扫描
     connect(stopScan, &QPushButton::clicked, [this]() {
         unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
@@ -826,8 +1025,435 @@ void MainWindow::createConnections()
         sendBuffer[4] = (scanPhiValue->text().toInt()*32767/360) & 0xFF;
         sendBuffer[5] = ((scanPhiValue->text().toInt()*32767/360) >> 8) & 0xFF;
         sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
-        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-                                                   QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //热像自检
+    connect(irSelfCheck, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //非均匀校正
+    connect(NUC, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x01;
+        sendBuffer[3] = 0x00;
+        sendBuffer[4] = NUCValue->currentData().toUInt();
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //快门校正
+    connect(ShutterCorrection, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x01;
+        sendBuffer[3] = 0x01;
+        sendBuffer[4] = ShutterCorrectionValue->currentData().toUInt();
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //极性
+    connect(imagePolarity, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x01;
+        sendBuffer[3] = 0x03;
+        sendBuffer[4] = imagePolarityValue->currentData().toUInt();
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //图像翻转
+    connect(imageFlip, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x01;
+        sendBuffer[3] = 0x04;
+        sendBuffer[4] = imageFlipValue->currentData().toUInt();
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //对比度
+    connect(irContrast, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x01;
+        sendBuffer[3] = 0x05;
+        sendBuffer[4] = irContrastValue->text().toUInt();
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //亮度
+    connect(irBrightness, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x01;
+        sendBuffer[3] = 0x06;
+        sendBuffer[4] = irBrightnessValue->text().toUInt();
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //DDE增强
+    connect(DDEEnhancement, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x01;
+        sendBuffer[3] = 0x07;
+        sendBuffer[4] = DDEEnhancementValue->currentData().toUInt();
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //图像实域滤波
+    connect(temporalFiltering, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x01;
+        sendBuffer[3] = 0x08;
+        sendBuffer[4] = temporalFilteringValue->currentData().toUInt();
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //电子变倍
+    connect(irElectronicZoom, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x01;
+        sendBuffer[3] = 0x09;
+        sendBuffer[4] = irElectronicZoomValue->currentData().toUInt();
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //图像空域滤波
+    connect(spatialFiltering, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x01;
+        sendBuffer[3] = 0x0A;
+        sendBuffer[4] = spatialFilteringValue->currentData().toUInt();
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //图像空域滤波
+    connect(irCrossHair, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x02;
+        sendBuffer[3] = 0x00;
+        sendBuffer[4] = irCrossHairValue->currentData().toUInt();
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光自检
+    connect(visSelfCheck, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光亮度
+    connect(visBrightness, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x01;
+        sendBuffer[4] = visBrightnessValue->text().toUInt();
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光对比度
+    connect(visContrast, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x02;
+        sendBuffer[4] = visContrastValue->text().toUInt();
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光清晰度恢复
+    connect(sharpnessReset, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x03;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光清晰度+
+    connect(sharpnessIncrease, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x03;
+        sendBuffer[4] = 0x01;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光清晰度-
+    connect(sharpnessDecrease, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x03;
+        sendBuffer[4] = 0x02;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光视场停止
+    connect(FOVstop, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x04;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光视场窄
+    connect(FOVNarrow, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x04;
+        sendBuffer[4] = 0x01;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光视场宽
+    connect(FOVWide, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x04;
+        sendBuffer[4] = 0x02;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光电子变倍关
+    connect(visElectronicZoomOff, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x05;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光电子变倍开
+    connect(visElectronicZoomOn, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x05;
+        sendBuffer[4] = 0x01;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光调焦停止
+    connect(focusStop, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x06;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光调焦+
+    connect(focusIncrease, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x06;
+        sendBuffer[4] = 0x01;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光调焦-
+    connect(focusDecrease, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x06;
+        sendBuffer[4] = 0x02;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光增益恢复
+    connect(gainReset, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x07;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光增益+
+    connect(gainIncrease, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x07;
+        sendBuffer[4] = 0x01;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光增益-
+    connect(gainDecrease, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x07;
+        sendBuffer[4] = 0x02;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //白光十字光标隐
+    connect(visCrossHairOff, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x08;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //白光十字光标显
+    connect(visCrossHairOn, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x08;
+        sendBuffer[4] = 0x01;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //指定倍数视场切换
+    connect(FOVSwitch, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x09;
+        sendBuffer[4] = FOVSwitchValue->text().toUInt();
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光手动聚焦
+    connect(manualFocus, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x0A;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光自动聚焦
+    connect(autoFocus, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x0B;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //可见光半自动聚焦
+    connect(semiAutoFocus, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x04;
+        sendBuffer[3] = 0x0C;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //激光系统自检
+    connect(laserSelfcheck, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x05;
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    });
+
+    //激光系统测距
+    connect(laserDis, &QPushButton::clicked, [this]() {
+        unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+        sendBuffer[0] = 0xCB;
+        sendBuffer[1] = 0x04;
+        sendBuffer[2] = 0x05;
+        sendBuffer[3] = 0x01;
+        sendBuffer[4] = laserDisValue->currentData().toUInt();
+        sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+        qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
     });
 }
 
@@ -898,6 +1524,7 @@ void MainWindow::onFrameCaptured(cv::Mat frame) {
                            .arg(m_videoPlayer->getCaptureThread()->getFrameWidth())
                            .arg(m_videoPlayer->getCaptureThread()->getFrameHeight()));
     }
+
     updateTimestamp(QTime::currentTime().toString("hh：mm：ss"));
 
     // 如果正在录制，写入帧数据
@@ -933,36 +1560,23 @@ void MainWindow::onStartDetectClicked()
 void MainWindow::sendStartDetectCommand()
 {
     unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
-
-    // 帧头
     sendBuffer[0] = 0xCB;
-    // 命令ID - 开始检测
     sendBuffer[1] = 0x01;
-    sendBuffer[2] = 0x03;
-    // 计算校验和 (从第1字节开始，共SENDBUFFER_SIZE_UDP-2字节)
+    sendBuffer[2] = 0x05;
+    sendBuffer[3] = 0x02;
     sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
-    qDebug() << sendBuffer[15] ;
-    qDebug()<<QString("0x%1").arg(static_cast<quint8>(sendBuffer[15]),2,16,QLatin1Char('0'));
-    // 发送UDP数据报并检查返回值
-    qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-                                               QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
 }
 
 void MainWindow::sendStopDetectCommand()
 {
     unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
-
-    // 帧头
-    sendBuffer[0] = 0xC1;
-    // 命令ID - 停止检测
-    sendBuffer[1] = 0x02;
-
-    // 计算校验和
-    sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[1], SENDBUFFER_SIZE_UDP - 2);
-
-    // 发送UDP数据报
-    udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
-                            QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+    sendBuffer[0] = 0xCB;
+    sendBuffer[1] = 0x01;
+    sendBuffer[2] = 0x05;
+    sendBuffer[3] = 0x03;
+    sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+    qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
 }
 
 unsigned char MainWindow::CalCheckNum(unsigned char data[], int num)
@@ -1000,85 +1614,46 @@ void MainWindow::parseReceivedData(const QByteArray &data)
     memcpy(&packet, data.constData(), sizeof(StatusFeedbackPacket));
 
     // 验证帧头
-    if (packet.frameHeader != 0xC0) {
-//        qWarning() << "帧头验证失败，期望:0xC0 实际:" << QString::number(packet.frameHeader, 16);
-        return; // 返回空对象
+    if (packet.frameHeader == 0xC0) {
+        // 验证校验和
+        uint8_t calculatedChecksum = 0;
+        const uint8_t *temp = reinterpret_cast<const uint8_t*>(&packet);
+
+        // 计算前63个字节的和
+        for (int i = 0; i < 63; ++i) {
+            calculatedChecksum += data[i];
+        }
+        if (calculatedChecksum != packet.checksum) {
+            qWarning() << "校验和验证失败";
+            return;
+        }
+    //    if (packet.systemFaultInfo.bits.servoFault)
+    //        QMessageBox::information(this, "伺服故障", "伺服系统发生故障！");
+    //    if (packet.systemFaultInfo.bits.trackerFault)
+    //        QMessageBox::information(this, "跟踪故障", "跟踪系统发生故障！");
+    //    if (packet.systemFaultInfo.bits.thermalFault)
+    //        QMessageBox::information(this, "热像故障", "热像系统发生故障！");
+    //    if (packet.systemFaultInfo.bits.whiteLightFault)
+    //        QMessageBox::information(this, "白光故障", "白光系统发生故障！");
+    //    if (packet.systemFaultInfo.bits.laserFault)
+    //        QMessageBox::information(this, "激光故障", "激光系统发生故障！");
+        aziValue->setText(QString::number(((float)packet.aziPosition/10000), 'f', 4));
+        phiValue->setText(QString::number(((float)packet.pitchPosition/10000), 'f', 4));
+        aziRateValue->setText(QString::number(((float)packet.aziVelocity*1024/32767), 'f', 4));
+        phiRateValue->setText(QString::number(((float)packet.pitchVelocity*1024/32767), 'f', 4));
     }
-
-    // 验证校验和
-    uint8_t calculatedChecksum = 0;
-    const uint8_t *temp = reinterpret_cast<const uint8_t*>(&packet);
-
-    // 计算前63个字节的和
-    for (int i = 0; i < 63; ++i) {
-        calculatedChecksum += data[i];
-    }
-    if (calculatedChecksum != packet.checksum) {
-        qWarning() << "校验和验证失败";
-        return;
-    }
-    if (packet.systemFaultInfo.bits.servoFault)
-        QMessageBox::information(this, "伺服故障", "伺服系统发生故障！");
-    if (packet.systemFaultInfo.bits.trackerFault)
-        QMessageBox::information(this, "跟踪故障", "跟踪系统发生故障！");
-    if (packet.systemFaultInfo.bits.thermalFault)
-        QMessageBox::information(this, "热像故障", "热像系统发生故障！");
-    if (packet.systemFaultInfo.bits.whiteLightFault)
-        QMessageBox::information(this, "白光故障", "白光系统发生故障！");
-    if (packet.systemFaultInfo.bits.laserFault)
-        QMessageBox::information(this, "激光故障", "激光系统发生故障！");
-    aziValue->setText(QString::number(((float)packet.aziPosition/10000), 'f', 4));
-    phiValue->setText(QString::number(((float)packet.pitchPosition/10000), 'f', 4));
-    aziRateValue->setText(QString::number(((float)packet.aziVelocity*1024/32767), 'f', 4));
-    phiRateValue->setText(QString::number(((float)packet.pitchVelocity*1024/32767), 'f', 4));
-
-//    QString statusText;
-//    QColor textColor;
-//    textColor = Qt::green;  // 故障时用红色
-
-//    switch (packet.systemMainMode) {
-//        case StatusFeedbackPacket::MODE_INIT:
-//            statusText = "初始模式\n";
-//            break;
-//        case StatusFeedbackPacket::MODE_PARKING:
-//            statusText = "停车模式\n";
-//            break;
-//        case StatusFeedbackPacket::MODE_SELF_TEST:
-//            statusText = "自检模式\n";
-//            break;
-//        case StatusFeedbackPacket::MODE_FORWARD_VIEW:
-//            statusText = "前视模式\n";
-//            break;
-//        case StatusFeedbackPacket::MODE_SECTOR_SCAN:
-//            statusText = "扇扫模式\n";
-//            break;
-//        case StatusFeedbackPacket::MODE_TRACKING:
-//            statusText = "跟踪模式\n";
-//            break;
-//        case StatusFeedbackPacket::MODE_PERIMETER_SCAN:
-//            statusText = "周扫模式\n";
-//            break;
-//        case StatusFeedbackPacket::MODE_DEBUG:
-//            statusText = "调试模式\n";
-//            break;
+//    qDebug() << "开始接收数据：";
+//    for (int i = 0; i < 8; i++) {
+//        qDebug()<<QString("0x%1").arg(static_cast<quint8>(data[i*8+0]),2,16,QLatin1Char('0'))<<
+//              QString("0x%1").arg(static_cast<quint8>(data[i*8+1]),2,16,QLatin1Char('0'))<<
+//              QString("0x%1").arg(static_cast<quint8>(data[i*8+2]),2,16,QLatin1Char('0'))<<
+//              QString("0x%1").arg(static_cast<quint8>(data[i*8+3]),2,16,QLatin1Char('0'))<<
+//              QString("0x%1").arg(static_cast<quint8>(data[i*8+4]),2,16,QLatin1Char('0'))<<
+//              QString("0x%1").arg(static_cast<quint8>(data[i*8+5]),2,16,QLatin1Char('0'))<<
+//              QString("0x%1").arg(static_cast<quint8>(data[i*8+6]),2,16,QLatin1Char('0'))<<
+//              QString("0x%1").arg(static_cast<quint8>(data[i*8+7]),2,16,QLatin1Char('0'));
 //    }
 
-//    // 使用富文本
-//    QString html = QString("<div style='"
-//                          "color: %1;"
-//                          "font-size: 14px;"
-//                          "font-weight: bold;"
-//                          "background-color: rgba(0,0,0,0.7);"
-//                          "padding: 8px;"
-//                          "border-radius: 5px;"
-//                          "position: absolute;"
-//                          "top: 20px;"
-//                          "right: 20px;"
-//                          "'>%2</div>")
-//                  .arg(textColor.name())
-//                  .arg(statusText.replace("\n", "<br>"));
-
-//    m_displayImageLabel->setText(html + "<br><br><br><br><br>");
 }
 
 
