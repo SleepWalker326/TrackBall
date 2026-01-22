@@ -1,6 +1,5 @@
 // MainWindow.h
-#ifndef MAINWINDOW_H
-#define MAINWINDOW_H
+#pragma once
 
 #include <QMainWindow>
 #include <QWidget>
@@ -13,22 +12,23 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QStatusBar>
-#include <QTimer>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QFile>
+#include <QStackedWidget>
+#include <QTimer>
 #include <QMessageBox>
 #include <QDebug>
 #include <QUdpSocket>
 #include <QSpinBox>
-#include <QTableWidget>
 #include <QtGlobal>
 #include <QIntValidator>
+#include <QMouseEvent>
+#include <QFont>
 
 #include "videoplayer.h"  // 添加头文件包含
 #include "mediarecorder.h"
 #include "statusfeedbackpacket.h"
-
 
 //#define UDP_AVAILDADA_SIZE 389
 //#define SENDBUFFER_SIZE_UDP 392
@@ -38,7 +38,6 @@
 上位机接收板卡发送数据"192.168.1.211:40212"
 */
 
-
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -47,7 +46,14 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-public slots:
+protected:
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+
+private slots:
+    void onNavigationClicked(int index);
+    void updateDateTime();
     // 用于更新显示信息的槽函数
     void updateFrameRate(const QString &frameRate);
     void updateResolution(const QString &resolution);
@@ -58,28 +64,37 @@ public slots:
     void readPendingDatagrams();
 
 private:
-    void createUI();
-    void createMainArea();
+    void setupUI();
+    void setupStyles();
+    void createTopBar();
+    void createNavigation();
+    void createContentArea();
+    void createContent2Area();
     void createDisplayArea();
     QWidget* createInfoArea();
-    void createControlButtons();
-    void createGimbalControl();
-    void createIrImagControl();
-    void createVisImageControl();
-    void createLaserControl();
-    void createControl();
+    void createBottomBar();
     void createConnections();
-    void createControlPanel();
+    QWidget* createGimbalControl();
+    QWidget* createIrImagControl();
+    QWidget* createVisImageControl();
+    QWidget* createLaserControl();
+    void updateNavigationStyle(int activeIndex);
     void sendStartDetectCommand();
     void sendStopDetectCommand();
+    void sendManualTrackCommand(const QRect &region);
     unsigned char CalCheckNum(unsigned char data[], int num);
     void parseReceivedData(const QByteArray &data);
 
-    QWidget *m_centralWidget;
-
-    // 主显示区域组件
-    QWidget *m_mainDisplayWidget;
-    QLabel *m_displayImageLabel;
+    // 顶部状态栏
+    QWidget *topBar;
+    QLabel *titleLabel;
+    QLabel *statusLabel;
+    QLabel *timeLabel;
+    QLabel *ServoStatusLabel;
+    QLabel *trackStatusLabel;
+    QLabel *irStatusLabel;
+    QLabel *visStatusLabel;
+    QLabel *laserStatusLabel;
 
     // 信息显示区域
     QLabel *m_frameRateLabel;
@@ -88,14 +103,33 @@ private:
     QLabel *m_resolutionValueLabel;
     QLabel *m_timestampLabel;
     QLabel *m_timestampValueLabel;
+    // 主显示区域组件
+    QWidget *m_mainDisplayWidget;
+    QLabel *m_displayImageLabel;
+    // 左侧导航
+    QWidget *navigationBar;
+    QVBoxLayout *navLayout;
+    QVector<QPushButton*> navButtons;
 
+    // 内容区域（堆叠窗口）
+    QWidget *contentStack;
+    QStackedWidget *contentStack2;
+
+    // 底部按钮
+    QWidget *bottomBar;
+    QPushButton *saveButton;
+    QPushButton *cancelButton;
+    // 控制组件
+    QPushButton *m_imageType_vis;
+    QPushButton *m_imageType_ir;
+    QPushButton *m_videoSource_stream;
+    QPushButton *m_videoSource_local;
+    // 页面
     QWidget *m_gimbalWidget;
     QWidget *m_irImagWidget;
     QWidget *m_visImageWidget;
     QWidget *m_laserWidget;
-    QWidget *m_controlWidget;
-    QWidget *m_rightPanelWidget;
-    QTableWidget  *m_dataTable;
+
     // 底部控制按钮
     QPushButton *m_connectionBtn;
     QPushButton *m_startDetectionBtn;
@@ -103,9 +137,6 @@ private:
     QPushButton *m_singleTargetTrackBtn;
     QPushButton *m_startRecordBtn;
     QPushButton *m_screenshotBtn;
-
-    // 右侧控制面板
-    QWidget *m_controlPanelWidget;
 
     // 云台控制组件
     QLabel *step;
@@ -196,16 +227,11 @@ private:
     QPushButton *manualFocus;
     QPushButton *autoFocus;
     QPushButton *semiAutoFocus;
-
-    // 控制组件
-    QPushButton *m_imageType_vis;
-    QPushButton *m_imageType_ir;
-    QPushButton *m_videoSource_stream;
-    QPushButton *m_videoSource_local;
     //激光控制组件
     QPushButton *laserSelfcheck;
     QPushButton *laserDis;
     QComboBox *laserDisValue;
+
     // 视频播放相关
     VideoPlayer *m_videoPlayer;
     bool m_isVideoPlaying;
@@ -216,7 +242,9 @@ private:
 
     //检测跟踪
     bool isDetecting;
-
+    bool isSelectingRegion;
+    QPoint selectionStart;
+    QRect selectedRegion;
     // 网络通信
     QUdpSocket *udpSocket;
     // 目标信息
@@ -230,6 +258,6 @@ private:
     static const int SENDBUFFER_SIZE_UDP = 16;  // 命令包大小
     unsigned char crossOrient;
     unsigned char crossStep;
-};
 
-#endif // MAINWINDOW_H
+    QTimer *timer;
+};

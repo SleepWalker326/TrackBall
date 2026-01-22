@@ -1,5 +1,10 @@
 // MainWindow.cpp
 #include "mainwindow.h"
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QGridLayout>
+#include <QDateTime>
+#include <QFrame>
 #include <QTime>
 #include <QDebug>
 const char* MainWindow::REMOTE_IP = "192.168.1.100";
@@ -9,76 +14,194 @@ MainWindow::MainWindow(QWidget *parent)
       m_videoPlayer(new VideoPlayer()),
       m_isVideoPlaying(false)
 {
+    setWindowTitle("光电球跟踪系统");
+
+    // 创建中心部件
+    QWidget *centralWidget = new QWidget(this);
+    setCentralWidget(centralWidget);
+
+    // 主布局
+    QVBoxLayout *mainLayout = new QVBoxLayout(centralWidget);
+    mainLayout->setSpacing(0);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
+
+    // 1. 创建顶部状态栏
+    createTopBar();
+    mainLayout->addWidget(topBar);
+
+    // 2. 创建主体内容区域
+    QHBoxLayout *bodyLayout = new QHBoxLayout();
+    bodyLayout->setSpacing(0);
+    bodyLayout->setContentsMargins(0, 0, 0, 0);
+
+    // 左侧导航
+    createNavigation();
+    bodyLayout->addWidget(navigationBar);  // 1份宽度
+
+    // 右侧内容
+    createContentArea();
+    bodyLayout->addWidget(contentStack);  // 4份宽度
+    createContent2Area();
+    bodyLayout->addWidget(contentStack2);  // 4份宽度
+
+    mainLayout->addLayout(bodyLayout, 1);  // 可伸缩部分
+
+    // 3. 创建底部按钮栏
+    createBottomBar();
+    mainLayout->addWidget(bottomBar);
+
+    // 设置样式
+    setupStyles();
+
+    // 初始化时间更新定时器
+    timer = new QTimer(this);
+    connect(timer, &QTimer::timeout, this, &MainWindow::updateDateTime);
+    timer->start(1000);  // 每秒更新一次时间
+
+    // 初始显示设置页面
+    contentStack2->setCurrentWidget(m_gimbalWidget);
+    updateNavigationStyle(0);  // 高亮设置按钮
+
     // 初始化UDP
     udpSocket = new QUdpSocket(this);
     if (!udpSocket->bind(QHostAddress::AnyIPv4, UDP_PORT_LOCAL)) {
         QMessageBox::critical(this, "错误", "无法绑定UDP端口: " + QString::number(UDP_PORT_LOCAL));
     }
-    createUI();
     createConnections();
 
     m_mediaRecorder = new MediaRecorder(this);
 
-    setWindowTitle("智能光电球显示界面");
-    resize(1500, 715);
 }
 
-MainWindow::~MainWindow()
-{
+MainWindow::~MainWindow(){
     delete m_videoPlayer;
     delete udpSocket;
-
 }
 
-void MainWindow::createUI()
+//顶部设计
+void MainWindow::createTopBar()
 {
-    // 创建中心部件
-    m_centralWidget = new QWidget(this);
-    setCentralWidget(m_centralWidget);
+    topBar = new QWidget();
+    topBar->setObjectName("topBar");
+    topBar->setFixedHeight(80);
 
-    // 创建主布局
-    QVBoxLayout *mainLayout = new QVBoxLayout(m_centralWidget);
+    QHBoxLayout *layout = new QHBoxLayout(topBar);
+    layout->setContentsMargins(20, 10, 20, 10);
 
-    // 创建主显示区域和右侧控制面板
-    createMainArea();
-    mainLayout->addWidget(m_mainDisplayWidget);
+    // 左侧：标题
+    QWidget *leftWidget = new QWidget();
+    QVBoxLayout *leftLayout = new QVBoxLayout(leftWidget);
+    leftLayout->setContentsMargins(0, 0, 0, 0);
+    leftLayout->setSpacing(5);
 
-    // 创建状态栏
-    statusBar();
+    titleLabel = new QLabel("第一研究所");
+    titleLabel->setObjectName("titleLabel");
+    leftLayout->addWidget(titleLabel);
 
+    statusLabel = new QLabel("智能软件组");
+    statusLabel->setObjectName("statusLabel");
+    leftLayout->addWidget(statusLabel);
+
+    // 中间：时间
+    QWidget *centerWidget = new QWidget();
+    QVBoxLayout *centerLayout = new QVBoxLayout(centerWidget);
+    centerLayout->setAlignment(Qt::AlignCenter);
+
+    timeLabel = new QLabel();
+    timeLabel->setObjectName("timeLabel");
+    timeLabel->setAlignment(Qt::AlignCenter);
+    centerLayout->addWidget(timeLabel);
+    updateDateTime();
+
+    // 右侧：电源状态
+    QWidget *rightWidget = new QWidget();
+    QHBoxLayout *rightLayout = new QHBoxLayout(rightWidget);
+    rightLayout->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+    ServoStatusLabel = new QLabel("伺服系统");
+    ServoStatusLabel->setProperty("status", "unknown");  // 初始未知状态
+    rightLayout->addWidget(ServoStatusLabel);
+    trackStatusLabel = new QLabel("跟踪系统");
+    trackStatusLabel->setProperty("status", "unknown");  // 初始未知状态
+    rightLayout->addWidget(trackStatusLabel);
+    irStatusLabel = new QLabel("热像系统");
+    irStatusLabel->setProperty("status", "unknown");  // 初始未知状态
+    rightLayout->addWidget(irStatusLabel);
+    visStatusLabel = new QLabel("可见光系统");
+    visStatusLabel->setProperty("status", "unknown");  // 初始未知状态
+    rightLayout->addWidget(visStatusLabel);
+    laserStatusLabel = new QLabel("激光系统");
+    laserStatusLabel->setProperty("status", "unknown");  // 初始未知状态
+    rightLayout->addWidget(laserStatusLabel);
+    layout->addWidget(leftWidget);
+    layout->addWidget(centerWidget, 1);
+    layout->addWidget(rightWidget);
 }
 
-void MainWindow::createMainArea()
+//导航栏
+void MainWindow::createNavigation()
 {
-    // 创建主显示区域容器
-    m_mainDisplayWidget = new QWidget();
-    QHBoxLayout *mainDisplayLayout = new QHBoxLayout(m_mainDisplayWidget);
+    navigationBar = new QWidget();
+    navigationBar->setObjectName("navigationBar");
+    navigationBar->setFixedWidth(150);
 
+    navLayout = new QVBoxLayout(navigationBar);
+    navLayout->setSpacing(15);
+    navLayout->addStretch();
+
+    navLayout->setContentsMargins(20, 40, 20, 40);
+
+    // 导航按钮
+    QStringList navItems = {
+        "云台控制",
+        "热像控制",
+        "白光控制",
+        "激光控制"
+    };
+
+    for (int i = 0; i < navItems.size(); ++i) {
+        QPushButton *button = new QPushButton(navItems[i]);
+        button->setObjectName(QString("navButton%1").arg(i));
+        button->setCheckable(true);
+        button->setFixedHeight(60);
+        button->setCursor(Qt::PointingHandCursor);
+
+        connect(button, &QPushButton::clicked, [this, i]() {
+            onNavigationClicked(i);
+        });
+
+        navButtons.append(button);
+        navLayout->addWidget(button);
+        navLayout->setSpacing(50);
+
+    }
+
+    navLayout->addStretch();
+}
+
+//中间显示
+void MainWindow::createContentArea()
+{
     // 创建左侧显示区域
-    QWidget *leftDisplayWidget = new QWidget();
-    leftDisplayWidget->setFixedSize(671, 591);
-    QVBoxLayout *leftLayout = new QVBoxLayout(leftDisplayWidget);
+    contentStack = new QWidget();
+    contentStack->setFixedWidth(1200);
+    QVBoxLayout *leftLayout = new QVBoxLayout(contentStack);
 
     // 创建信息显示区域
     QWidget *infoArea = createInfoArea();
-    leftLayout->addWidget(infoArea);
+    leftLayout->addWidget(infoArea,0, Qt::AlignCenter);
 
     // 创建视频显示区域
     createDisplayArea();
     leftLayout->addWidget(m_displayImageLabel, 0, Qt::AlignCenter);
-
-    // 创建右侧控制面板和表格区域
-    createControlPanel();
-
-    // 添加到主布局
-    mainDisplayLayout->addWidget(leftDisplayWidget);
-    mainDisplayLayout->addWidget(m_rightPanelWidget);  // 改为右侧整体面板
+    leftLayout->addStretch();
 }
 
+//信息显示
 QWidget* MainWindow::createInfoArea()
 {
     QWidget *infoWidget = new QWidget();
-    infoWidget->setFixedSize(641, 61);
+    infoWidget->setFixedSize(1000, 70);
     QHBoxLayout *infoLayout = new QHBoxLayout(infoWidget);
 
     // 帧率信息
@@ -86,7 +209,12 @@ QWidget* MainWindow::createInfoArea()
     frameRateWidget->setFixedSize(75, 60);
     QVBoxLayout *frameRateLayout = new QVBoxLayout(frameRateWidget);
     m_frameRateLabel = new QLabel("帧率");
+    QFont font("黑体", 16, QFont::Bold);  // 黑体，16px，加粗
+    m_frameRateLabel->setFont(font);
+    m_frameRateLabel->setFixedHeight(30);
     m_frameRateValueLabel = new QLabel("0fps");
+    m_frameRateValueLabel->setFont(font);
+    m_frameRateValueLabel->setFixedHeight(30);
     m_frameRateLabel->setAlignment(Qt::AlignCenter);
     m_frameRateValueLabel->setAlignment(Qt::AlignCenter);
     frameRateLayout->addWidget(m_frameRateLabel);
@@ -96,8 +224,11 @@ QWidget* MainWindow::createInfoArea()
     resolutionWidget->setFixedSize(100, 60);
     QVBoxLayout *resolutionLayout = new QVBoxLayout(resolutionWidget);
     m_resolutionLabel = new QLabel("分辨率");
+    m_resolutionLabel->setFont(font);
+    m_resolutionLabel->setFixedHeight(30);
     m_resolutionValueLabel = new QLabel("640*512");
-    m_resolutionValueLabel->setFixedWidth(95);
+    m_resolutionValueLabel->setFont(font);
+    m_resolutionValueLabel->setFixedHeight(30);
     m_resolutionLabel->setAlignment(Qt::AlignCenter);
     m_resolutionValueLabel->setAlignment(Qt::AlignCenter);
     resolutionLayout->addWidget(m_resolutionLabel);
@@ -105,10 +236,14 @@ QWidget* MainWindow::createInfoArea()
 
     // 时间戳信息
     QWidget *timestampWidget = new QWidget();
-    timestampWidget->setFixedSize(100, 60);
+    timestampWidget->setFixedSize(150, 60);
     QVBoxLayout *timestampLayout = new QVBoxLayout(timestampWidget);
     m_timestampLabel = new QLabel("时间戳");
+    m_timestampLabel->setFont(font);
+    m_timestampLabel->setFixedHeight(30);
     m_timestampValueLabel = new QLabel("00：00：00");
+    m_timestampValueLabel->setFont(font);
+    m_timestampValueLabel->setFixedHeight(30);
     m_timestampLabel->setAlignment(Qt::AlignCenter);
     m_timestampValueLabel->setAlignment(Qt::AlignCenter);
     timestampLayout->addWidget(m_timestampLabel);
@@ -121,97 +256,126 @@ QWidget* MainWindow::createInfoArea()
     return infoWidget;
 }
 
+//视频显示
 void MainWindow::createDisplayArea()
 {
     QWidget *displayContainer = new QWidget();
-    displayContainer->setFixedSize(640, 512);
+    displayContainer->setFixedSize(1200, 650);
     QVBoxLayout *containerLayout = new QVBoxLayout(displayContainer);
 
     m_displayImageLabel = new QLabel("显示图像");
-    m_displayImageLabel->setFixedSize(640, 512);
+    m_displayImageLabel->setFixedSize(1130, 635);
     m_displayImageLabel->setAlignment(Qt::AlignCenter);
-    m_displayImageLabel->setStyleSheet("border: 1px solid gray; background-color: #f0f0f0;");
+    m_displayImageLabel->setStyleSheet("border: 1px solid gray; background-color: white;");
     containerLayout->addWidget(m_displayImageLabel);
 }
 
-void MainWindow::createControlPanel()
+void MainWindow::createContent2Area()
 {
-    // 创建右侧整体面板
-    m_rightPanelWidget = new QWidget();
-    m_rightPanelWidget->setFixedSize(601, 701);
-    QVBoxLayout *rightPanelLayout = new QVBoxLayout(m_rightPanelWidget);
-    rightPanelLayout->setSpacing(10);  // 设置间距
+    contentStack2 = new QStackedWidget();
+    contentStack2->setObjectName("contentStack");
 
-    // 创建TabWidget
-    QTabWidget *controlTabWidget = new QTabWidget();
-    controlTabWidget->setFixedSize(591, 341);  // 调整高度，为表格留出空间
+    // 1. 云台控制
+    m_gimbalWidget = createGimbalControl();
+    contentStack2->addWidget(m_gimbalWidget);
 
-    // 创建各个控制模块的Tab页
-    createGimbalControl();
-    createIrImagControl();
-    createVisImageControl();
-    createLaserControl();
-    createControl();
-    // 将各个控制模块添加到Tab页
-    controlTabWidget->addTab(m_gimbalWidget, "云台控制");
-    controlTabWidget->addTab(m_irImagWidget, "热像图像控制");
-    controlTabWidget->addTab(m_visImageWidget, "白光操作控制");
-    controlTabWidget->addTab(m_laserWidget, "激光操作控制");
-    controlTabWidget->addTab(m_controlWidget, "操作控制");
+    // 2. 热像控制
+    m_irImagWidget = createIrImagControl();
+    contentStack2->addWidget(m_irImagWidget);
 
-    // 创建表格区域
-    QWidget *tableWidget = new QWidget();
-    tableWidget->setFixedSize(591, 300);  // 表格区域高度
-    QVBoxLayout *tableLayout = new QVBoxLayout(tableWidget);
+    // 3. 可见光控制
+    m_visImageWidget = createVisImageControl();
+    contentStack2->addWidget(m_visImageWidget);
 
-    // 创建表格标题
-    QLabel *tableTitle = new QLabel();
-    tableTitle->setAlignment(Qt::AlignCenter);
-    tableTitle->setStyleSheet("font-weight: bold; font-size: 14px; margin: 5px;");
+    // 4. 激光控制
+    m_laserWidget = createLaserControl();
+    contentStack2->addWidget(m_laserWidget);
+}
 
-    // 创建表格（暂时留空，不编辑内容）
-    m_dataTable = new QTableWidget();
-    m_dataTable->setFixedSize(581, 280);
-    m_dataTable->setColumnCount(4);  // 设置4列
-    m_dataTable->setRowCount(20);     // 设置5行
+void MainWindow::createBottomBar()
+{
+    bottomBar = new QWidget();
+    bottomBar->setObjectName("settingsItemButton");
+    bottomBar->setFixedHeight(60);
 
-    // 设置表头
-    QStringList headers;
-    headers << "目标类别" << "目标俯仰角" << "目标方位角" << "目标状态";
-    m_dataTable->setHorizontalHeaderLabels(headers);
+    QHBoxLayout *layout = new QHBoxLayout(bottomBar);
 
-    // 设置表格样式
-    m_dataTable->setStyleSheet("QTableWidget { border: 1px solid #ccc; background-color: white; }"
-                              "QHeaderView::section { background-color: #f0f0f0; padding: 5px; border: 1px solid #ddd; }");
+    // 保存按钮
+    m_connectionBtn = new QPushButton("连接");
+    m_connectionBtn->setObjectName("settingsItem1Button");
+    m_connectionBtn->setFixedSize(80, 45);
+    m_connectionBtn->setCursor(Qt::PointingHandCursor);
+    layout->addWidget(m_connectionBtn);
 
-    // 暂时禁用编辑
-    m_dataTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    // 取消按钮
+    m_startDetectionBtn = new QPushButton("开始检测");
+    m_startDetectionBtn->setObjectName("settingsItem1Button");
+    m_startDetectionBtn->setFixedSize(120, 45);
+    m_startDetectionBtn->setCursor(Qt::PointingHandCursor);
+    layout->addWidget(m_startDetectionBtn);
 
-    // 添加到表格布局
-//    tableLayout->addWidget(tableTitle);
-    tableLayout->addWidget(m_dataTable);
+    m_multiTargetTrackBtn = new QPushButton("多目标跟踪");
+    m_multiTargetTrackBtn->setFixedSize(120,45);
+    m_multiTargetTrackBtn->setObjectName("settingsItem1Button");
+    m_multiTargetTrackBtn->setCursor(Qt::PointingHandCursor);
+    layout->addWidget(m_multiTargetTrackBtn);
 
-    // 将TabWidget和表格添加到右侧面板布局
-    rightPanelLayout->addStretch();
-    rightPanelLayout->addWidget(controlTabWidget);
-    rightPanelLayout->addStretch();
-    rightPanelLayout->addWidget(tableWidget);
-    rightPanelLayout->addStretch();
+    m_singleTargetTrackBtn = new QPushButton("单目标跟踪");
+    m_singleTargetTrackBtn->setFixedSize(120,45);
+    m_singleTargetTrackBtn->setObjectName("settingsItem1Button");
+    m_singleTargetTrackBtn->setCursor(Qt::PointingHandCursor);
+    layout->addWidget(m_singleTargetTrackBtn);
+
+    m_startRecordBtn = new QPushButton("开始录制");
+    m_startRecordBtn->setFixedSize(120,45);
+    m_startRecordBtn->setObjectName("settingsItem1Button");
+    m_startRecordBtn->setCursor(Qt::PointingHandCursor);
+    layout->addWidget(m_startRecordBtn);
+
+    m_screenshotBtn = new QPushButton("截图");
+    m_screenshotBtn->setFixedSize(80,45);
+    m_screenshotBtn->setObjectName("settingsItem1Button");
+    m_screenshotBtn->setCursor(Qt::PointingHandCursor);
+    layout->addWidget(m_screenshotBtn);
+
+    m_imageType_ir = new QPushButton("红外图像");
+    m_imageType_ir->setFixedSize(120, 45);
+    m_imageType_ir->setObjectName("settingsItem1Button");
+    m_imageType_ir->setCursor(Qt::PointingHandCursor);
+    layout->addWidget(m_imageType_ir);
+
+    m_imageType_vis = new QPushButton("可见光图像");
+    m_imageType_vis->setFixedSize(120, 45);
+    m_imageType_vis->setObjectName("settingsItem1Button");
+    m_imageType_vis->setCursor(Qt::PointingHandCursor);
+    layout->addWidget(m_imageType_vis);
+
+    m_videoSource_stream = new QPushButton("推流视频");
+    m_videoSource_stream->setFixedSize(120, 45);
+    m_videoSource_stream->setObjectName("settingsItem1Button");
+    m_videoSource_stream->setCursor(Qt::PointingHandCursor);
+    layout->addWidget(m_videoSource_stream);
+
+    m_videoSource_local = new QPushButton("本地视频");
+    m_videoSource_local->setFixedSize(120, 45);
+    m_videoSource_local->setObjectName("settingsItem1Button");
+    m_videoSource_local->setCursor(Qt::PointingHandCursor);
+    layout->addWidget(m_videoSource_local);
 
 }
 
-void MainWindow::createGimbalControl()
+QWidget* MainWindow::createGimbalControl()
 {
-    // 改为创建普通Widget而不是GroupBox
     m_gimbalWidget = new QWidget();
-    m_gimbalWidget->setFixedSize(591, 301); // 调整高度以适应Tab页
+    m_gimbalWidget->setFixedSize(400, 600); // 调整高度以适应Tab页
 
-    QGridLayout *mainLayout = new QGridLayout(m_gimbalWidget);
+    QVBoxLayout *mainLayout = new QVBoxLayout(m_gimbalWidget);
 
     //步长、方位速度、俯仰速度
     QWidget *window1 = new QWidget();
     QHBoxLayout *win1layout = new QHBoxLayout(window1);
     step = new QLabel("步长");
+    step->setObjectName("label");
     step->setAlignment(Qt::AlignCenter);
     step->setFixedSize(50,40);
     stepValue = new QSpinBox();
@@ -222,6 +386,7 @@ void MainWindow::createGimbalControl()
     steplayout->addWidget(step);
     steplayout->addWidget(stepValue);
     aziRate = new QLabel("方位速度");
+    aziRate->setObjectName("label");
     aziRate->setFixedSize(70,40);
     aziRateValue = new QLabel("0");
     aziRateValue->setFixedSize(70,40);
@@ -229,6 +394,7 @@ void MainWindow::createGimbalControl()
     aziRatelayout->addWidget(aziRate);
     aziRatelayout->addWidget(aziRateValue);
     phiRate = new QLabel("俯仰速度");
+    phiRate->setObjectName("label");
     phiRate->setFixedSize(70,40);
     phiRateValue = new QLabel("0");
     phiRateValue->setFixedSize(70,40);
@@ -240,20 +406,26 @@ void MainWindow::createGimbalControl()
     ratelayout->addLayout(phiRatelayout);
     win1layout->addLayout(steplayout);
     win1layout->addLayout(ratelayout);
-    mainLayout->addWidget(window1,0,0);
+
+    mainLayout->addWidget(window1);
 
     //前视模式
     QWidget *window2 = new QWidget();
     QHBoxLayout *win2layout = new QHBoxLayout(window2);
     frontView = new QPushButton("前视模式");
-    frontView->setFixedSize(100,40);
+    frontView->setObjectName("settingsItemButton");
+    frontView->setFixedSize(100,50);
     frontViewAzi = new QLabel("前视方位");
+    frontViewAzi->setObjectName("label");
     frontViewAzi->setFixedSize(70,40);
     frontViewAziValue = new QLineEdit("0");
+    frontViewAziValue->setAlignment(Qt::AlignCenter);
     frontViewAziValue->setFixedSize(70,25);
     frontViewPhi = new QLabel("前视俯仰");
+    frontViewPhi->setObjectName("label");
     frontViewPhi->setFixedSize(70,40);
     frontViewPhiValue = new QLineEdit("0");
+    frontViewPhiValue->setAlignment(Qt::AlignCenter);
     frontViewPhiValue->setFixedSize(70,25);
     QHBoxLayout *frontViewAzilayout = new QHBoxLayout();
     frontViewAzilayout->addWidget(frontViewAzi);
@@ -266,26 +438,31 @@ void MainWindow::createGimbalControl()
     frontViewlayout->addLayout(frontViewPhilayout);
     win2layout->addWidget(frontView);
     win2layout->addLayout(frontViewlayout);
-    mainLayout->addWidget(window2,0,1);
+    mainLayout->addWidget(window2);
 
     //方向控制
     QWidget *window3 = new QWidget();
     QHBoxLayout *win3layout = new QHBoxLayout(window3);
     QWidget *directionWidget = new QWidget();
     m_gimbalUpBtn = new QPushButton("上");
-    m_gimbalUpBtn->setFixedSize(40,40);
+    m_gimbalUpBtn->setObjectName("settingsItemButton");
+    m_gimbalUpBtn->setFixedSize(50,50);
     m_gimbalLeftBtn = new QPushButton("左");
-    m_gimbalLeftBtn->setFixedSize(40,40);
+    m_gimbalLeftBtn->setObjectName("settingsItemButton");
+    m_gimbalLeftBtn->setFixedSize(50,50);
     m_gimbalDownBtn = new QPushButton("下");
-    m_gimbalDownBtn->setFixedSize(40,40);
+    m_gimbalDownBtn->setObjectName("settingsItemButton");
+    m_gimbalDownBtn->setFixedSize(50,50);
     m_gimbalRightBtn = new QPushButton("右");
-    m_gimbalRightBtn->setFixedSize(40,40);
+    m_gimbalRightBtn->setObjectName("settingsItemButton");
+    m_gimbalRightBtn->setFixedSize(50,50);
     QGridLayout *directionlayout = new QGridLayout(directionWidget);
     directionlayout->addWidget(m_gimbalUpBtn,0,1);
     directionlayout->addWidget(m_gimbalLeftBtn,1,0);
     directionlayout->addWidget(m_gimbalDownBtn,1,1);
     directionlayout->addWidget(m_gimbalRightBtn,1,2);
     azi = new QLabel("方位位置");
+    azi->setObjectName("label");
     azi->setFixedSize(70,40);
     aziValue = new QLabel("0");
     aziValue->setFixedSize(70,40);
@@ -293,6 +470,7 @@ void MainWindow::createGimbalControl()
     azilayout->addWidget(azi);
     azilayout->addWidget(aziValue);
     phi = new QLabel("俯仰位置");
+    phi->setObjectName("label");
     phi->setFixedSize(70,40);
     phiValue = new QLabel("0");
     phiValue->setFixedSize(70,40);
@@ -304,45 +482,56 @@ void MainWindow::createGimbalControl()
     positionlayout->addLayout(philayout);
     win3layout->addWidget(directionWidget);
     win3layout->addLayout(positionlayout);
-    mainLayout->addWidget(window3,1,0);
+    mainLayout->addWidget(window3);
 
     //扫描模式
     QWidget *window4 = new QWidget();
     QHBoxLayout *win4layout = new QHBoxLayout(window4);
     sectorScan = new QPushButton("扇扫模式");
-    sectorScan->setFixedSize(100,40);
+    sectorScan->setObjectName("settingsItemButton");
+    sectorScan->setFixedSize(100,50);
     circularScan = new QPushButton("周扫模式");
-    circularScan->setFixedSize(100,40);
+    circularScan->setObjectName("settingsItemButton");
+    circularScan->setFixedSize(100,50);
     stopScan = new QPushButton("停止扫描");
-    stopScan->setFixedSize(100,40);
+    stopScan->setObjectName("settingsItemButton");
+    stopScan->setFixedSize(100,50);
     QVBoxLayout *scanBtnlayout = new QVBoxLayout();
     scanBtnlayout->addWidget(sectorScan);
     scanBtnlayout->addWidget(circularScan);
     scanBtnlayout->addWidget(stopScan);
     scanPhi = new QLabel("扫描俯仰");
+    scanPhi->setObjectName("label");
     scanPhi->setFixedSize(70,40);
     scanPhiValue = new QLineEdit("0");
+    scanPhiValue->setAlignment(Qt::AlignCenter);
     scanPhiValue->setFixedSize(70,25);
     QHBoxLayout *scanPhilayout = new QHBoxLayout();
     scanPhilayout->addWidget(scanPhi);
     scanPhilayout->addWidget(scanPhiValue);
     scanRate = new QLabel("扫描速度");
+    scanRate->setObjectName("label");
     scanRate->setFixedSize(70,40);
     scanRateValue = new QLineEdit("0");
+    scanRateValue->setAlignment(Qt::AlignCenter);
     scanRateValue->setFixedSize(70,25);
     QHBoxLayout *scanRatelayout = new QHBoxLayout();
     scanRatelayout->addWidget(scanRate);
     scanRatelayout->addWidget(scanRateValue);
     scanRange = new QLabel("扫描范围");
+    scanRange->setObjectName("label");
     scanRange->setFixedSize(70,40);
     scanRangeValue = new QLineEdit("0");
+    scanRangeValue->setAlignment(Qt::AlignCenter);
     scanRangeValue->setFixedSize(70,25);
     QHBoxLayout *scanRangelayout = new QHBoxLayout();
     scanRangelayout->addWidget(scanRange);
     scanRangelayout->addWidget(scanRangeValue);
     scanCenter = new QLabel("扫描中心");
+    scanCenter->setObjectName("label");
     scanCenter->setFixedSize(70,40);
     scanCenterValue = new QLineEdit("0");
+    scanCenterValue->setAlignment(Qt::AlignCenter);
     scanCenterValue->setFixedSize(70,25);
     QHBoxLayout *scanCenterlayout = new QHBoxLayout();
     scanCenterlayout->addWidget(scanCenter);
@@ -354,25 +543,28 @@ void MainWindow::createGimbalControl()
     scanlayout->addLayout(scanCenterlayout);
     win4layout->addLayout(scanBtnlayout);
     win4layout->addLayout(scanlayout);
-    mainLayout->addWidget(window4,1,1);
+    mainLayout->addWidget(window4);
+
+    return m_gimbalWidget;
 }
 
-void MainWindow::createIrImagControl()
+QWidget* MainWindow::createIrImagControl()
 {
-    m_irImagWidget = new QWidget();
-    m_irImagWidget->setFixedSize(591, 330);
-
-    QGridLayout *mainLayout = new QGridLayout(m_irImagWidget);
+    QWidget *page = new QWidget();
+    QVBoxLayout *layout = new QVBoxLayout(page);
+    layout->setAlignment(Qt::AlignCenter);
 
     //自检
     irSelfCheck = new QPushButton("自检");
-    irSelfCheck->setFixedSize(80,30);
+    irSelfCheck->setObjectName("settingsItemButton");
+    irSelfCheck->setFixedSize(150,50);
 
     //非均匀校正
     NUC = new QPushButton("非均匀校正");
-    NUC->setFixedSize(80,30);
+    NUC->setObjectName("settingsItemButton");
+    NUC->setFixedSize(150,50);
     NUCValue = new QComboBox();
-    NUCValue->setFixedSize(70,30);
+    NUCValue->setFixedSize(70,40);
     NUCValue->addItem("手动",0x00);
     NUCValue->addItem("自动",0x01);
     QHBoxLayout *NUClayout = new QHBoxLayout();
@@ -381,9 +573,10 @@ void MainWindow::createIrImagControl()
 
     // 快门校正
     ShutterCorrection = new QPushButton("快门校正");
-    ShutterCorrection->setFixedSize(70,30);
+    ShutterCorrection->setObjectName("settingsItemButton");
+    ShutterCorrection->setFixedSize(150,50);
     ShutterCorrectionValue = new QComboBox();
-    ShutterCorrectionValue->setFixedSize(105,30);
+    ShutterCorrectionValue->setFixedSize(105,40);
     ShutterCorrectionValue->addItem("背景校正",0x00);
     ShutterCorrectionValue->addItem("双稳态快门",0x01);
     QHBoxLayout *ShutterCorrectionlayout = new QHBoxLayout();
@@ -392,9 +585,10 @@ void MainWindow::createIrImagControl()
 
     // 极性
     imagePolarity = new QPushButton("极性");
-    imagePolarity->setFixedSize(70,30);
+    imagePolarity->setObjectName("settingsItemButton");
+    imagePolarity->setFixedSize(150,50);
     imagePolarityValue = new QComboBox();
-    imagePolarityValue->setFixedSize(70,30);
+    imagePolarityValue->setFixedSize(70,40);
     imagePolarityValue->addItem("白热",0x00);
     imagePolarityValue->addItem("黑热",0x01);
     QHBoxLayout *imagePolaritylayout = new QHBoxLayout();
@@ -403,9 +597,10 @@ void MainWindow::createIrImagControl()
 
     // 图像翻转
     imageFlip = new QPushButton("图像翻转");
-    imageFlip->setFixedSize(70,30);
+    imageFlip->setObjectName("settingsItemButton");
+    imageFlip->setFixedSize(150,50);
     imageFlipValue = new QComboBox();
-    imageFlipValue->setFixedSize(95,30);
+    imageFlipValue->setFixedSize(95,40);
     imageFlipValue->addItem("不翻转",0x00);
     imageFlipValue->addItem("上下翻转",0x01);
     imageFlipValue->addItem("左右翻转",0x02);
@@ -416,9 +611,11 @@ void MainWindow::createIrImagControl()
 
     //对比度
     irContrast = new QPushButton("对比度");
-    irContrast->setFixedSize(70,30);
+    irContrast->setObjectName("settingsItemButton");
+    irContrast->setFixedSize(150,50);
     irContrastValue = new QLineEdit("128");
-    irContrastValue->setFixedSize(70,30);
+    irContrastValue->setAlignment(Qt::AlignCenter);
+    irContrastValue->setFixedSize(70,40);
     irContrastValue->setPlaceholderText("0～255");
     QHBoxLayout *irContrastlayout = new QHBoxLayout();
     irContrastlayout->addWidget(irContrast);
@@ -426,9 +623,11 @@ void MainWindow::createIrImagControl()
 
     //亮度
     irBrightness = new QPushButton("亮度");
-    irBrightness->setFixedSize(70,30);
+    irBrightness->setObjectName("settingsItemButton");
+    irBrightness->setFixedSize(150,50);
     irBrightnessValue = new QLineEdit("128");
-    irBrightnessValue->setFixedSize(70,30);
+    irBrightnessValue->setAlignment(Qt::AlignCenter);
+    irBrightnessValue->setFixedSize(70,40);
     irBrightnessValue->setPlaceholderText("0～255");
     QHBoxLayout *irBrightnesslayout = new QHBoxLayout();
     irBrightnesslayout->addWidget(irBrightness);
@@ -436,9 +635,10 @@ void MainWindow::createIrImagControl()
 
     // DDE增强
     DDEEnhancement = new QPushButton("DDE增强");
-    DDEEnhancement->setFixedSize(70,30);
+    DDEEnhancement->setObjectName("settingsItemButton");
+    DDEEnhancement->setFixedSize(150,50);
     DDEEnhancementValue = new QComboBox();
-    DDEEnhancementValue->setFixedSize(70,30);
+    DDEEnhancementValue->setFixedSize(70,40);
     DDEEnhancementValue->addItem("1",0x01);
     DDEEnhancementValue->addItem("2",0x02);
     DDEEnhancementValue->addItem("3",0x03);
@@ -453,9 +653,10 @@ void MainWindow::createIrImagControl()
 
     //图像实域滤波
     temporalFiltering = new QPushButton("图像实域滤波");
-    temporalFiltering->setFixedSize(100,30);
+    temporalFiltering->setObjectName("settingsItemButton");
+    temporalFiltering->setFixedSize(150,50);
     temporalFilteringValue = new QComboBox();
-    temporalFilteringValue->setFixedSize(80,30);
+    temporalFilteringValue->setFixedSize(80,40);
     temporalFilteringValue->addItem("滤波关",0x00);
     temporalFilteringValue->addItem("滤波开",0x01);
     QHBoxLayout *temporalFilteringlayout = new QHBoxLayout();
@@ -464,9 +665,10 @@ void MainWindow::createIrImagControl()
 
     // 电子变倍
     irElectronicZoom = new QPushButton("电子变倍");
-    irElectronicZoom->setFixedSize(70,30);
+    irElectronicZoom->setObjectName("settingsItemButton");
+    irElectronicZoom->setFixedSize(150,50);
     irElectronicZoomValue = new QComboBox();
-    irElectronicZoomValue->setFixedSize(70,30);
+    irElectronicZoomValue->setFixedSize(70,40);
     irElectronicZoomValue->addItem("1");
     irElectronicZoomValue->addItem("2");
     irElectronicZoomValue->addItem("3");
@@ -477,9 +679,10 @@ void MainWindow::createIrImagControl()
 
     //图像空域滤波
     spatialFiltering = new QPushButton("图像空域滤波");
-    spatialFiltering->setFixedSize(100,30);
+    spatialFiltering->setObjectName("settingsItemButton");
+    spatialFiltering->setFixedSize(150,50);
     spatialFilteringValue = new QComboBox();
-    spatialFilteringValue->setFixedSize(80,30);
+    spatialFilteringValue->setFixedSize(80,40);
     spatialFilteringValue->addItem("滤波关",0x00);
     spatialFilteringValue->addItem("滤波开",0x01);
     QHBoxLayout *spatialFilteringlayout = new QHBoxLayout();
@@ -488,42 +691,45 @@ void MainWindow::createIrImagControl()
 
     //热像十字光标显隐
     irCrossHair = new QPushButton("十字光标显隐");
-    irCrossHair->setFixedSize(100,30);
+    irCrossHair->setObjectName("settingsItemButton");
+    irCrossHair->setFixedSize(150,50);
     irCrossHairValue = new QComboBox();
-    irCrossHairValue->setFixedSize(70,30);
+    irCrossHairValue->setFixedSize(70,40);
     irCrossHairValue->addItem("隐藏",0x00);
     irCrossHairValue->addItem("显示",0x01);
     QHBoxLayout *irCrossHairlayout = new QHBoxLayout();
     irCrossHairlayout->addWidget(irCrossHair);
     irCrossHairlayout->addWidget(irCrossHairValue);
 
-    mainLayout->addWidget(irSelfCheck,0,0);
-    mainLayout->addLayout(irCrossHairlayout,0,1);
-    mainLayout->addLayout(NUClayout,1,0);
-    mainLayout->addLayout(ShutterCorrectionlayout,1,1);
-    mainLayout->addLayout(imagePolaritylayout,2,0);
-    mainLayout->addLayout(imageFliplayout,2,1);
-    mainLayout->addLayout(irContrastlayout,3,0);
-    mainLayout->addLayout(irBrightnesslayout,3,1);
-    mainLayout->addLayout(DDEEnhancementlayout,4,0);
-    mainLayout->addLayout(irElectronicZoomlayout,4,1);
-    mainLayout->addLayout(temporalFilteringlayout,5,0);
-    mainLayout->addLayout(spatialFilteringlayout,5,1);
+    layout->addWidget(irSelfCheck);
+    layout->addLayout(NUClayout);
+    layout->addLayout(ShutterCorrectionlayout);
+    layout->addLayout(imagePolaritylayout);
+    layout->addLayout(imageFliplayout);
+    layout->addLayout(irContrastlayout);
+    layout->addLayout(irBrightnesslayout);
+    layout->addLayout(DDEEnhancementlayout);
+    layout->addLayout(irElectronicZoomlayout);
+    layout->addLayout(temporalFilteringlayout);
+    layout->addLayout(spatialFilteringlayout);
+    layout->addLayout(irCrossHairlayout);
 
+
+    return page;
 }
 
-void MainWindow::createVisImageControl()
+QWidget* MainWindow::createVisImageControl()
 {
-    m_visImageWidget = new QWidget();
-    m_visImageWidget->setFixedSize(591, 330);
-
-    QVBoxLayout *mainLayout = new QVBoxLayout(m_visImageWidget);
+    QWidget *page = new QWidget();
+    QVBoxLayout *mainLayout = new QVBoxLayout(page);
 
     //亮度
     visBrightness = new QPushButton("亮度");
-    visBrightness->setFixedSize(70,30);
+    visBrightness->setObjectName("settingsItemButton");
+    visBrightness->setFixedSize(70,50);
     visBrightnessValue = new QLineEdit("50");
-    visBrightnessValue->setFixedSize(50,30);
+    visBrightnessValue->setAlignment(Qt::AlignCenter);
+    visBrightnessValue->setFixedSize(50,40);
     visBrightnessValue->setPlaceholderText("0～100");
     QHBoxLayout *visBrightnesslayout = new QHBoxLayout();
     visBrightnesslayout->addWidget(visBrightness);
@@ -531,9 +737,12 @@ void MainWindow::createVisImageControl()
 
     //对比度
     visContrast = new QPushButton("对比度");
-    visContrast->setFixedSize(70,30);
+    visContrast->setObjectName("settingsItemButton");
+
+    visContrast->setFixedSize(100,50);
     visContrastValue = new QLineEdit("50");
-    visContrastValue->setFixedSize(50,30);
+    visContrastValue->setAlignment(Qt::AlignCenter);
+    visContrastValue->setFixedSize(50,40);
     visContrastValue->setPlaceholderText("0～100");
     QHBoxLayout *visContrastlayout = new QHBoxLayout();
     visContrastlayout->addWidget(visContrast);
@@ -541,13 +750,17 @@ void MainWindow::createVisImageControl()
 
     //清晰度
     sharpness = new QLabel("清晰度");
-    sharpness->setFixedSize(70,30);
+    sharpness->setObjectName("label");
+    sharpness->setFixedSize(70,50);
     sharpnessReset = new QPushButton("恢复");
-    sharpnessReset->setFixedSize(50,30);
+    sharpnessReset->setObjectName("settingsItemButton");
+    sharpnessReset->setFixedSize(80,50);
     sharpnessIncrease = new QPushButton("+");
-    sharpnessIncrease->setFixedSize(30,30);
+    sharpnessIncrease->setObjectName("settingsItemButton");
+    sharpnessIncrease->setFixedSize(50,50);
     sharpnessDecrease = new QPushButton("-");
-    sharpnessDecrease->setFixedSize(30,30);
+    sharpnessDecrease->setObjectName("settingsItemButton");
+    sharpnessDecrease->setFixedSize(50,50);
     QHBoxLayout *sharpnesslayout = new QHBoxLayout();
     sharpnesslayout->addWidget(sharpness);
     sharpnesslayout->addWidget(sharpnessReset);
@@ -556,13 +769,17 @@ void MainWindow::createVisImageControl()
 
     //视场
     FOV = new QLabel("视场");
-    FOV->setFixedSize(70,30);
+    FOV->setObjectName("label");
+    FOV->setFixedSize(70,50);
     FOVstop = new QPushButton("停止");
-    FOVstop->setFixedSize(50,30);
+    FOVstop->setObjectName("settingsItemButton");
+    FOVstop->setFixedSize(80,50);
     FOVNarrow = new QPushButton("窄");
-    FOVNarrow->setFixedSize(30,30);
+    FOVNarrow->setObjectName("settingsItemButton");
+    FOVNarrow->setFixedSize(50,50);
     FOVWide = new QPushButton("宽");
-    FOVWide->setFixedSize(30,30);
+    FOVWide->setObjectName("settingsItemButton");
+    FOVWide->setFixedSize(50,50);
     QHBoxLayout *FOVlayout = new QHBoxLayout();
     FOVlayout->addWidget(FOV);
     FOVlayout->addWidget(FOVstop);
@@ -571,11 +788,14 @@ void MainWindow::createVisImageControl()
 
     // 电子变倍
     visElectronicZoom = new QLabel("电子变倍");
-    visElectronicZoom->setFixedSize(70,30);
+    visElectronicZoom->setObjectName("label");
+    visElectronicZoom->setFixedSize(70,50);
     visElectronicZoomOff = new QPushButton("关");
-    visElectronicZoomOff->setFixedSize(30,30);
+    visElectronicZoomOff->setObjectName("settingsItemButton");
+    visElectronicZoomOff->setFixedSize(50,50);
     visElectronicZoomOn = new QPushButton("开");
-    visElectronicZoomOn->setFixedSize(30,30);
+    visElectronicZoomOn->setObjectName("settingsItemButton");
+    visElectronicZoomOn->setFixedSize(50,50);
     QHBoxLayout *visElectronicZoomlayout = new QHBoxLayout();
     visElectronicZoomlayout->addWidget(visElectronicZoom);
     visElectronicZoomlayout->addWidget(visElectronicZoomOff);
@@ -583,13 +803,17 @@ void MainWindow::createVisImageControl()
 
     //调焦
     focus = new QLabel("调焦");
-    focus->setFixedSize(70,30);
+    focus->setObjectName("label");
+    focus->setFixedSize(70,50);
     focusStop = new QPushButton("停止");
-    focusStop->setFixedSize(50,30);
+    focusStop->setObjectName("settingsItemButton");
+    focusStop->setFixedSize(80,50);
     focusIncrease = new QPushButton("+");
-    focusIncrease->setFixedSize(30,30);
+    focusIncrease->setObjectName("settingsItemButton");
+    focusIncrease->setFixedSize(50,50);
     focusDecrease = new QPushButton("-");
-    focusDecrease->setFixedSize(30,30);
+    focusDecrease->setObjectName("settingsItemButton");
+    focusDecrease->setFixedSize(50,50);
     QHBoxLayout *focuslayout = new QHBoxLayout();
     focuslayout->addWidget(focus);
     focuslayout->addWidget(focusStop);
@@ -598,13 +822,17 @@ void MainWindow::createVisImageControl()
 
     //增益
     gain = new QLabel("增益");
-    gain->setFixedSize(70,30);
+    gain->setObjectName("label");
+    gain->setFixedSize(70,50);
     gainReset = new QPushButton("恢复");
-    gainReset->setFixedSize(50,30);
+    gainReset->setObjectName("settingsItemButton");
+    gainReset->setFixedSize(80,50);
     gainIncrease = new QPushButton("+");
-    gainIncrease->setFixedSize(30,30);
+    gainIncrease->setObjectName("settingsItemButton");
+    gainIncrease->setFixedSize(50,50);
     gainDecrease = new QPushButton("-");
-    gainDecrease->setFixedSize(30,30);
+    gainDecrease->setObjectName("settingsItemButton");
+    gainDecrease->setFixedSize(50,50);
     QHBoxLayout *gainlayout = new QHBoxLayout();
     gainlayout->addWidget(gain);
     gainlayout->addWidget(gainReset);
@@ -613,11 +841,14 @@ void MainWindow::createVisImageControl()
 
     //白光十字光标显隐
     visCrossHair = new QLabel("十字光标显隐");
-    visCrossHair->setFixedSize(100,30);
+    visCrossHair->setObjectName("label");
+    visCrossHair->setFixedSize(100,50);
     visCrossHairOff = new QPushButton("关");
-    visCrossHairOff->setFixedSize(30,30);
+    visCrossHairOff->setObjectName("settingsItemButton");
+    visCrossHairOff->setFixedSize(50,50);
     visCrossHairOn = new QPushButton("开");
-    visCrossHairOn->setFixedSize(30,30);
+    visCrossHairOn->setObjectName("settingsItemButton");
+    visCrossHairOn->setFixedSize(50,50);
     QHBoxLayout *visCrossHairlayout = new QHBoxLayout();
     visCrossHairlayout->addWidget(visCrossHair);
     visCrossHairlayout->addWidget(visCrossHairOff);
@@ -625,76 +856,64 @@ void MainWindow::createVisImageControl()
 
     //指定倍数视场切换
     FOVSwitch = new QPushButton("指定倍数视场切换");
-    FOVSwitch->setFixedSize(130,30);
+    FOVSwitch->setObjectName("settingsItemButton");
+    FOVSwitch->setFixedSize(160,50);
     FOVSwitchValue = new QLineEdit("1");
-    FOVSwitchValue->setFixedSize(50,30);
+    FOVSwitchValue->setAlignment(Qt::AlignCenter);
+    FOVSwitchValue->setFixedSize(50,50);
     FOVSwitchValue->setPlaceholderText("1～38");
     QHBoxLayout *FOVSwitchlayout = new QHBoxLayout();
     FOVSwitchlayout->addWidget(FOVSwitch);
     FOVSwitchlayout->addWidget(FOVSwitchValue);
 
     visSelfCheck = new QPushButton("自检");
-    visSelfCheck->setFixedSize(120,30);
+    visSelfCheck->setObjectName("settingsItemButton");
+    visSelfCheck->setFixedSize(120,50);
     manualFocus = new QPushButton("手动聚焦");
-    manualFocus->setFixedSize(120,30);
+    manualFocus->setObjectName("settingsItemButton");
+    manualFocus->setFixedSize(120,50);
     autoFocus = new QPushButton("自动聚焦");
-    autoFocus->setFixedSize(120,30);
+    autoFocus->setObjectName("settingsItemButton");
+    autoFocus->setFixedSize(120,50);
     semiAutoFocus = new QPushButton("半自动聚焦");
-    semiAutoFocus->setFixedSize(120,30);
+    semiAutoFocus->setObjectName("settingsItemButton");
+    semiAutoFocus->setFixedSize(120,50);
 
-    QHBoxLayout *layout1 = new QHBoxLayout();
-    layout1->addStretch();
-    layout1->addLayout(visElectronicZoomlayout);
-    layout1->addStretch();
-    layout1->addLayout(visCrossHairlayout);
-    layout1->addStretch();
-    QHBoxLayout *layout2 = new QHBoxLayout();
-    layout2->addStretch();
-    layout2->addLayout(sharpnesslayout);
-    layout2->addStretch();
-    layout2->addLayout(FOVlayout);
-    layout2->addStretch();
-    QHBoxLayout *layout3 = new QHBoxLayout();
-    layout3->addStretch();
-    layout3->addLayout(gainlayout);
-    layout3->addStretch();
-    layout3->addLayout(focuslayout);
-    layout3->addStretch();
-    QHBoxLayout *layout4 = new QHBoxLayout();
-    layout4->addLayout(visBrightnesslayout);
-    layout4->addLayout(visContrastlayout);
-    layout4->addLayout(FOVSwitchlayout);
-    QHBoxLayout *visBtnlayout = new QHBoxLayout();
-    visBtnlayout->addWidget(visSelfCheck);
-    visBtnlayout->addWidget(manualFocus);
-    visBtnlayout->addWidget(autoFocus);
-    visBtnlayout->addWidget(semiAutoFocus);
+    mainLayout->addLayout(visElectronicZoomlayout);
+    mainLayout->addLayout(visCrossHairlayout);
+    mainLayout->addLayout(sharpnesslayout);
+    mainLayout->addLayout(FOVlayout);
+    mainLayout->addLayout(gainlayout);
+    mainLayout->addLayout(focuslayout);
+    mainLayout->addLayout(visBrightnesslayout);
+    mainLayout->addLayout(visContrastlayout);
+    mainLayout->addLayout(FOVSwitchlayout);
+    QHBoxLayout *lay1 = new QHBoxLayout();
+    lay1->addWidget(visSelfCheck);
+    lay1->addWidget(manualFocus);
+    QHBoxLayout *lay2 = new QHBoxLayout();
+    lay2->addWidget(autoFocus);
+    lay2->addWidget(semiAutoFocus);
+    mainLayout->addLayout(lay1);
+    mainLayout->addLayout(lay2);
 
-    mainLayout->addStretch();
-    mainLayout->addLayout(layout1);
-    mainLayout->addSpacing(20);
-    mainLayout->addLayout(layout2);
-    mainLayout->addSpacing(20);
-    mainLayout->addLayout(layout3);
-    mainLayout->addSpacing(20);
-    mainLayout->addLayout(layout4);
-    mainLayout->addSpacing(20);
-    mainLayout->addLayout(visBtnlayout);
-    mainLayout->addStretch();
+
+    return page;
 }
 
-void MainWindow::createLaserControl() {
-    m_laserWidget = new QWidget();
-    m_laserWidget->setFixedSize(591, 330);
-
-    QHBoxLayout *mainLayout = new QHBoxLayout(m_laserWidget);
+QWidget* MainWindow::createLaserControl() {
+    QWidget *page = new QWidget();
+    QHBoxLayout *mainLayout = new QHBoxLayout(page);
     laserSelfcheck = new QPushButton("自检");
-    laserSelfcheck->setFixedSize(100, 35);
+    laserSelfcheck->setObjectName("settingsItemButton");
+    laserSelfcheck->setGeometry(50,50,100,50);
+    laserSelfcheck->setFixedSize(100, 50);
     QHBoxLayout *laserDislayout = new QHBoxLayout();
     laserDis = new QPushButton("测距");
-    laserDis->setFixedSize(100, 35);
+    laserDis->setObjectName("settingsItemButton");
+    laserDis->setFixedSize(100, 50);
     laserDisValue = new QComboBox();
-    laserDisValue->setFixedSize(100, 35);
+    laserDisValue->setFixedSize(100, 50);
     laserDisValue->addItem("停止测距",0x00);
     laserDisValue->addItem("单次测距",0x01);
     laserDisValue->addItem("1Hz重频",0x02);
@@ -703,97 +922,52 @@ void MainWindow::createLaserControl() {
     laserDislayout->addWidget(laserDisValue);
     mainLayout->addWidget(laserSelfcheck);
     mainLayout->addLayout(laserDislayout);
-
+    return page;
 }
 
-void MainWindow::createControl()
+void MainWindow::onNavigationClicked(int index)
 {
-    m_controlWidget = new QWidget();
-    m_controlWidget->setFixedSize(591, 320);
+    // 切换到对应页面
+    switch (index) {
+    case 0:
+        contentStack2->setCurrentWidget(m_gimbalWidget);
+        break;
+    case 1:
+        contentStack2->setCurrentWidget(m_irImagWidget);
+        break;
+    case 2:
+        contentStack2->setCurrentWidget(m_visImageWidget);
+        break;
+    case 3:
+        contentStack2->setCurrentWidget(m_laserWidget);
+        break;
+    }
 
-    QVBoxLayout *mainLayout = new QVBoxLayout(m_controlWidget);
-
-    // 模式选择
-    QWidget *modeWidget = new QWidget();
-    modeWidget->setFixedSize(591, 100);
-    QVBoxLayout *modeLayout = new QVBoxLayout(modeWidget);
-
-    // 图像类型选择
-    QWidget *imageTypeWidget = new QWidget();
-    imageTypeWidget->setFixedSize(591, 45);
-    QHBoxLayout *imageTypeLayout = new QHBoxLayout(imageTypeWidget);
-
-    QLabel *imageTypeTitle = new QLabel("图像类型");
-    imageTypeTitle->setFixedSize(80, 30);
-    m_imageType_ir = new QPushButton("红外");
-    m_imageType_vis = new QPushButton("可见光");
-    m_imageType_ir->setFixedSize(100, 35);
-    m_imageType_vis->setFixedSize(100, 35);
-
-    imageTypeLayout->addStretch();
-    imageTypeLayout->addWidget(imageTypeTitle);
-    imageTypeLayout->addWidget(m_imageType_ir);
-    imageTypeLayout->addWidget(m_imageType_vis);
-    imageTypeLayout->addStretch();
-
-    // 视频源选择
-    QWidget *videoSourceWidget = new QWidget();
-    videoSourceWidget->setFixedSize(591, 45);
-    QHBoxLayout *videoSourceLayout = new QHBoxLayout(videoSourceWidget);
-
-    QLabel *videoSourceTitle = new QLabel("视频源");
-    videoSourceTitle->setFixedSize(80, 30);
-    m_videoSource_stream = new QPushButton("推流视频");
-    m_videoSource_local = new QPushButton("本地视频");
-    m_videoSource_stream->setFixedSize(100, 35);
-    m_videoSource_local->setFixedSize(100, 35);
-
-    videoSourceLayout->addStretch();
-    videoSourceLayout->addWidget(videoSourceTitle);
-    videoSourceLayout->addWidget(m_videoSource_stream);
-    videoSourceLayout->addWidget(m_videoSource_local);
-    videoSourceLayout->addStretch();
-
-    modeLayout->addWidget(imageTypeWidget);
-    modeLayout->addWidget(videoSourceWidget);
-
-    // 亮度和对比度控制
-    QWidget *controlWidget = new QWidget();
-    controlWidget->setFixedSize(591, 150);
-    QGridLayout *controlLayout = new QGridLayout(controlWidget);
-
-    createControlButtons();
-
-    controlLayout->addWidget(m_connectionBtn,0,0);
-    controlLayout->addWidget(m_singleTargetTrackBtn,0,1);
-    controlLayout->addWidget(m_screenshotBtn,0,2);
-    controlLayout->addWidget(m_startDetectionBtn,1,0);
-    controlLayout->addWidget(m_multiTargetTrackBtn,1,1);
-    controlLayout->addWidget(m_startRecordBtn,1,2);
-
-    // 添加到主布局
-    mainLayout->addSpacing(20);
-    mainLayout->addWidget(modeWidget);
-    mainLayout->addSpacing(20);
-    mainLayout->addWidget(controlWidget);
-    mainLayout->addStretch();
-
+    // 更新导航按钮样式
+    updateNavigationStyle(index);
 }
 
-void MainWindow::createControlButtons()
+void MainWindow::updateNavigationStyle(int activeIndex)
 {
-    m_connectionBtn = new QPushButton("连接");
-    m_connectionBtn->setFixedSize(120,35);
-    m_startDetectionBtn = new QPushButton("开始检测");
-    m_startDetectionBtn->setFixedSize(120,35);
-    m_multiTargetTrackBtn = new QPushButton("多目标跟踪");
-    m_multiTargetTrackBtn->setFixedSize(120,35);
-    m_singleTargetTrackBtn = new QPushButton("单目标跟踪");
-    m_singleTargetTrackBtn->setFixedSize(120,35);
-    m_startRecordBtn = new QPushButton("开始录制");
-    m_startRecordBtn->setFixedSize(120,35);
-    m_screenshotBtn = new QPushButton("截图");
-    m_screenshotBtn->setFixedSize(120,35);
+    for (int i = 0; i < navButtons.size(); ++i) {
+        QPushButton *button = navButtons[i];
+        bool isActive = (i == activeIndex);
+        button->setChecked(isActive);
+
+        // 更新样式
+        QString style = QString(
+            "QPushButton#navButton%1 {"
+            "    background-color: %2;"
+            "    color: %3;"
+            "    border: 2px solid %4;"
+            "}"
+        ).arg(i)
+         .arg(isActive ? "#3498db" : "#f5f5f5")
+         .arg(isActive ? "white" : "#333")
+         .arg(isActive ? "#2980b9" : "#ddd");
+
+        button->setStyleSheet(style);
+    }
 }
 
 void MainWindow::createConnections()
@@ -1496,27 +1670,34 @@ void MainWindow::onFrameCaptured(cv::Mat frame) {
     if (frame.empty()) return;
 
     // 计算裁剪区域
-    int cropWidth = m_displayImageLabel->width();
-    int cropHeight = m_displayImageLabel->height();
-    int startX = (frame.cols - cropWidth) / 2;
-    int startY = (frame.rows - cropHeight) / 2;
+//    int cropWidth = m_displayImageLabel->width();
+//    int cropHeight = m_displayImageLabel->height();
+//    int startX = (frame.cols - cropWidth) / 2;
+//    int startY = (frame.rows - cropHeight) / 2;
 
-    // 确保裁剪区域有效
-    startX = std::max(0, startX);
-    startY = std::max(0, startY);
-    cropWidth = std::min(cropWidth, frame.cols - startX);
-    cropHeight = std::min(cropHeight, frame.rows - startY);
+//    // 确保裁剪区域有效
+//    startX = std::max(0, startX);
+//    startY = std::max(0, startY);
+//    cropWidth = std::min(cropWidth, frame.cols - startX);
+//    cropHeight = std::min(cropHeight, frame.rows - startY);
 
-    // 裁剪中心区域
-    cv::Mat croppedFrame = frame(cv::Rect(startX, startY, cropWidth, cropHeight));
+//    // 裁剪中心区域
+//    cv::Mat croppedFrame = frame(cv::Rect(startX, startY, cropWidth, cropHeight));
+    QImage img = VideoPlayer::cvMatToQImage(frame);
+    QPixmap pixmap = QPixmap::fromImage(img);
+    int scaledWidth = frame.cols / 1.7;
+    int scaledHeight = frame.rows / 1.7;
 
-    // 转换为QImage并显示
-    QImage img = VideoPlayer::cvMatToQImage(croppedFrame);
-    if (!img.isNull()) {
-        QPixmap pixmap = QPixmap::fromImage(img);
-        m_displayImageLabel->setPixmap(pixmap);
-    }
+    QPixmap finalPixmap = pixmap.scaled(
+        scaledWidth,
+        scaledHeight,
+        Qt::KeepAspectRatio,  // 保持宽高比
+        Qt::SmoothTransformation
+    );
 
+    m_displayImageLabel->setPixmap(finalPixmap);
+
+    m_displayImageLabel->setAlignment(Qt::AlignCenter);
     // 更新视频信息
     if (m_videoPlayer->getCaptureThread()) {
         updateFrameRate(QString("%1fps").arg((int)m_videoPlayer->getCaptureThread()->getFrameRate()));
@@ -1579,6 +1760,93 @@ void MainWindow::sendStopDetectCommand()
     qint64 bytesSent = udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
 }
 
+void MainWindow::mousePressEvent(QMouseEvent *event)
+{
+    // 只有在检测状态下才能选择区域
+    if (isDetecting && m_displayImageLabel->geometry().contains(event->pos())) {
+        // 将全局坐标转换为显示区域的局部坐标
+        QPoint localPos = m_displayImageLabel->mapFrom(this, event->pos());
+        selectionStart = localPos;
+        isSelectingRegion = true;
+        selectedRegion = QRect(localPos, QSize(0, 0));
+
+        // 更新显示
+        m_displayImageLabel->update();
+    }
+    QMainWindow::mousePressEvent(event);
+}
+
+void MainWindow::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (isSelectingRegion && isDetecting) {
+        isSelectingRegion = false;
+        // 将全局坐标转换为显示区域的局部坐标
+        QPoint localPos = m_displayImageLabel->mapFrom(this, event->pos());
+        selectedRegion.setBottomRight(localPos);
+
+        // 确保区域有效
+        if (selectedRegion.width() > 10 && selectedRegion.height() > 10) {
+            // 发送手动跟踪指令
+            sendManualTrackCommand(selectedRegion);
+
+            // 在列表中显示信息
+            QString info = QString("发送手动跟踪指令 - 区域: (%1, %2, %3, %4)")
+                            .arg(selectedRegion.x())
+                            .arg(selectedRegion.y())
+                            .arg(selectedRegion.width())
+                            .arg(selectedRegion.height());
+            qDebug() << info;
+        }
+
+        // 更新显示
+        m_displayImageLabel->update();
+    }
+    QMainWindow::mouseReleaseEvent(event);
+}
+
+void MainWindow::mouseMoveEvent(QMouseEvent *event)
+{
+    if (isSelectingRegion && isDetecting) {
+        QPoint localPos = m_displayImageLabel->mapFrom(this, event->pos());
+        selectedRegion.setBottomRight(localPos);
+        m_displayImageLabel->update(); // 触发重绘
+    }
+    QMainWindow::mouseMoveEvent(event);
+}
+
+void MainWindow::sendManualTrackCommand(const QRect &region)
+{
+    unsigned char sendBuffer[SENDBUFFER_SIZE_UDP] = {0};
+
+    // 帧头
+    sendBuffer[0] = 0xCB;
+    // 命令ID - 手动跟踪
+    sendBuffer[1] = 0x01;
+    sendBuffer[2] = 0x05;
+    sendBuffer[3] = 0x00;
+
+    // 填充区域信息 (x, y, width, height)
+    // 注意：这里需要根据实际协议格式调整字节顺序
+    sendBuffer[4] = int(region.x()*1.7) & 0xFF;
+    sendBuffer[5] = (int(region.x()*1.7) >> 8) & 0xFF;
+
+    sendBuffer[6] = int(region.y()*1.7) & 0xFF;
+    sendBuffer[7] = (int(region.y()*1.7) >> 8) & 0xFF;
+
+    sendBuffer[8] = region.width() & 0xFF;
+    sendBuffer[9] = (region.width() >> 8) & 0xFF;
+
+    sendBuffer[10] = region.height() & 0xFF;
+    sendBuffer[11] = (region.height() >> 8) & 0xFF;
+
+    // 计算校验和
+    sendBuffer[SENDBUFFER_SIZE_UDP - 1] = CalCheckNum(&sendBuffer[0], SENDBUFFER_SIZE_UDP - 2);
+
+    // 发送UDP数据报
+    udpSocket->writeDatagram((char*)sendBuffer, SENDBUFFER_SIZE_UDP,
+                            QHostAddress(REMOTE_IP), UDP_PORT_REMOTE);
+}
+
 unsigned char MainWindow::CalCheckNum(unsigned char data[], int num)
 {
     unsigned char res = 0;
@@ -1627,16 +1895,72 @@ void MainWindow::parseReceivedData(const QByteArray &data)
             qWarning() << "校验和验证失败";
             return;
         }
-    //    if (packet.systemFaultInfo.bits.servoFault)
-    //        QMessageBox::information(this, "伺服故障", "伺服系统发生故障！");
-    //    if (packet.systemFaultInfo.bits.trackerFault)
-    //        QMessageBox::information(this, "跟踪故障", "跟踪系统发生故障！");
-    //    if (packet.systemFaultInfo.bits.thermalFault)
-    //        QMessageBox::information(this, "热像故障", "热像系统发生故障！");
-    //    if (packet.systemFaultInfo.bits.whiteLightFault)
-    //        QMessageBox::information(this, "白光故障", "白光系统发生故障！");
-    //    if (packet.systemFaultInfo.bits.laserFault)
-    //        QMessageBox::information(this, "激光故障", "激光系统发生故障！");
+
+        if (packet.systemFaultInfo.bits.servoFault) {
+            ServoStatusLabel->setProperty("status", "fault");  // 故障状态
+            ServoStatusLabel->setText("伺服故障");
+        } else {
+            ServoStatusLabel->setProperty("status", "normal");  // 正常状态
+            ServoStatusLabel->setText("伺服正常");
+        }
+        ServoStatusLabel->style()->unpolish(ServoStatusLabel);
+        ServoStatusLabel->style()->polish(ServoStatusLabel);
+        ServoStatusLabel->update();
+
+        if (!packet.systemFaultInfo.bits.trackerFault){
+            trackStatusLabel->setProperty("status", "fault");  // 故障状态
+            trackStatusLabel->setText("跟踪故障");
+        }
+        else {
+            trackStatusLabel->setProperty("status", "normal");  // 正常状态
+            trackStatusLabel->setText("跟踪正常");
+        }
+        trackStatusLabel->style()->unpolish(trackStatusLabel);
+        trackStatusLabel->style()->polish(trackStatusLabel);
+        trackStatusLabel->update();
+
+        if (packet.systemFaultInfo.bits.thermalFault) {
+            irStatusLabel->setProperty("status", "fault");  // 故障状态
+            irStatusLabel->setText("热像故障");
+        }
+        else{
+            irStatusLabel->setProperty("status", "normal");  // 正常状态
+            irStatusLabel->setText("热像正常");
+        }
+        irStatusLabel->style()->unpolish(irStatusLabel);
+        irStatusLabel->style()->polish(irStatusLabel);
+        irStatusLabel->update();
+
+        if (packet.systemFaultInfo.bits.whiteLightFault) {
+            visStatusLabel->setProperty("status", "fault");  // 故障状态
+            visStatusLabel->setText("可见光故障");
+        }
+        else{
+            visStatusLabel->setProperty("status", "normal");  // 正常状态
+            visStatusLabel->setText("可见光正常");
+        }
+        visStatusLabel->style()->unpolish(visStatusLabel);
+        visStatusLabel->style()->polish(visStatusLabel);
+        visStatusLabel->update();
+
+        if (packet.systemFaultInfo.bits.laserFault){
+            laserStatusLabel->setProperty("status", "fault");  // 故障状态
+            laserStatusLabel->setText("激光故障");
+        }
+        else{
+            laserStatusLabel->setProperty("status", "normal");  // 正常状态
+            laserStatusLabel->setText("激光正常");
+        }
+        laserStatusLabel->style()->unpolish(laserStatusLabel);
+        laserStatusLabel->style()->polish(laserStatusLabel);
+        laserStatusLabel->update();
+
+//        qDebug() << packet.systemFaultInfo.bits.servoFault <<
+//                    packet.systemFaultInfo.bits.trackerFault <<
+//                    packet.systemFaultInfo.bits.thermalFault <<
+//                    packet.systemFaultInfo.bits.whiteLightFault <<
+//                    packet.systemFaultInfo.bits.laserFault;
+
         aziValue->setText(QString::number(((float)packet.aziPosition/10000), 'f', 4));
         phiValue->setText(QString::number(((float)packet.pitchPosition/10000), 'f', 4));
         aziRateValue->setText(QString::number(((float)packet.aziVelocity*1024/32767), 'f', 4));
@@ -1656,4 +1980,215 @@ void MainWindow::parseReceivedData(const QByteArray &data)
 
 }
 
+void MainWindow::updateDateTime()
+{
+    QString currentTime = QDateTime::currentDateTime().toString("hh:mm AP");
+    timeLabel->setText(currentTime);
+}
 
+void MainWindow::setupStyles()
+{
+    // 应用全局样式表
+    QString styleSheet = R"(
+        /* 主窗口 */
+        QMainWindow {
+            background-color: #f8f9fa;
+        }
+
+        /* 顶部状态栏 */
+        QWidget#topBar {
+            background-color: white;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        QLabel#titleLabel {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        QLabel#statusLabel {
+            font-size: 14px;
+            color: #e74c3c;
+            font-weight: bold;
+        }
+
+        QLabel#timeLabel {
+            font-size: 20px;
+            font-weight: bold;
+            color: #3498db;
+        }
+
+         QLabel[status="fault"] {
+             font-size: 16px;
+             color: #e74c3c;           /* 红色文字 */
+             font-weight: bold;
+             padding: 5px 15px;
+             background-color: #fdedec;  /* 浅红色背景 */
+             border-radius: 4px;
+             border: 1px solid #e74c3c;
+         }
+
+         QLabel[status="normal"] {
+             font-size: 16px;
+             color: #27ae60;           /* 绿色文字 */
+             font-weight: bold;
+             padding: 5px 15px;
+             background-color: #d5f4e6;  /* 浅绿色背景 */
+             border-radius: 4px;
+             border: 1px solid #27ae60;
+         }
+
+         QLabel[status="unknown"] {
+             font-size: 16px;
+             color: #7f8c8d;           /* 灰色文字 */
+             font-weight: bold;
+             padding: 5px 15px;
+             background-color: #ecf0f1;  /* 浅灰色背景 */
+             border-radius: 4px;
+             border: 1px dashed #bdc3c7;
+         }
+
+        /* 左侧导航栏 */
+        QWidget#navigationBar {
+            background-color: white;
+            border-right: 2px solid #e0e0e0;
+        }
+
+        /* 导航按钮基础样式 */
+        QPushButton[objectName^="navButton"] {
+            text-align: left;
+            padding-left: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            border: 2px solid #ddd;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        QPushButton[objectName^="navButton"]:hover {
+            background-color: #e8f4fc;
+            border-color: #3498db;
+        }
+
+        QPushButton[objectName^="navButton"]:checked {
+            background-color: #3498db;
+            color: white;
+            border-color: #2980b9;
+        }
+
+        /* 内容区域 */
+        QWidget#contentStack {
+            background-color: white;
+            border-radius: 10px;
+            margin: 20px;
+        }
+
+        /* 页面标题 */
+        QLabel#pageTitle {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2c3e50;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #3498db;
+        }
+
+        QLabel#label {
+            font-weight: bold;
+        }
+
+
+        /* 设置项按钮 */
+        QPushButton#settingsItemButton {
+            text-align: left;
+            padding-left: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            background-color: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+        }
+
+        QPushButton#settingsItemButton:hover {
+            background-color: #e3f2fd;
+            border-color: #3498db;
+            transform: translateY(-2px);
+        }
+
+        QPushButton#settingsItemButton:pressed {
+            background-color: #bbdefb;
+        }
+
+        QPushButton#settingsItem1Button {
+            text-align: left;
+            padding-left: 20px;
+            font-size: 16px;
+            font-weight: bold;
+            background-color: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+        }
+
+        QPushButton#settingsItem1Button:hover {
+            background-color: #e3f2fd;
+            border-color: #3498db;
+            transform: translateY(-2px);
+        }
+
+        QPushButton#settingsItem1Button:pressed {
+            background-color: #bbdefb;
+        }
+
+
+        /* 底部按钮栏 */
+        QWidget#bottomBar {
+            background-color: white;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        /* 保存按钮 */
+        QPushButton#saveButton {
+            background-color: #27ae60;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+        }
+
+        QPushButton#saveButton:hover {
+            background-color: #219653;
+        }
+
+        QPushButton#saveButton:pressed {
+            background-color: #1e8449;
+        }
+
+        /* 取消按钮 */
+        QPushButton#cancelButton {
+            background-color: #e74c3c;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            border: none;
+            border-radius: 8px;
+        }
+
+        QPushButton#cancelButton:hover {
+            background-color: #c0392b;
+        }
+
+        QPushButton#cancelButton:pressed {
+            background-color: #a93226;
+        }
+
+        /* 页面标签 */
+        QLabel#pageLabel {
+            font-size: 24px;
+            color: #7f8c8d;
+        }
+    )";
+
+    setStyleSheet(styleSheet);
+}
